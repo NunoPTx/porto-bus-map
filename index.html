@@ -15,7 +15,7 @@
             text-align: right; pointer-events: none;
         }
 
-        /* Container for the dot and arrow */
+        /* Perfectly centered container */
         .bus-wrapper {
             width: 30px;
             height: 30px;
@@ -27,21 +27,21 @@
 
         /* The central colored dot */
         .bus-dot {
-            width: 12px;
-            height: 12px;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
             border: 2px solid white;
             z-index: 2;
-            box-shadow: 0 0 3px rgba(0,0,0,0.5);
+            box-shadow: 0 0 4px rgba(0,0,0,0.6);
         }
 
-        /* The SVG arrow aligned to rotate around the center */
+        /* The SVG arrow - centered rotation */
         .bus-direction {
             position: absolute;
-            width: 26px;
-            height: 26px;
+            width: 30px;
+            height: 30px;
             z-index: 1;
-            /* Smooth rotation when bearing changes */
+            transform-origin: center center;
             transition: transform 0.8s ease-in-out;
         }
     </style>
@@ -79,7 +79,6 @@
         }
 
         async function updateBuses() {
-            // Prevent visual glitches during map interaction
             if (map._animatingZoom || map.dragging.moving()) return;
 
             try {
@@ -103,12 +102,13 @@
                         const color = getBusColor(line);
                         activeIds.add(id);
 
-                        // Icon Template: SVG Arrow + Circle
+                        // Icon Template: Triangle base starts near the circle edge
+                        // M12 0 means tip at top center, L16 8 L8 8 closes the triangle
                         const iconHtml = `
                             <div class="bus-wrapper">
                                 <div class="bus-dot" style="background-color: ${color}"></div>
                                 <svg class="bus-direction" style="transform: rotate(${bearing}deg)" viewBox="0 0 24 24">
-                                    <path d="M12 2l4 8H8l4-8z" fill="white" stroke="black" stroke-width="0.5"/>
+                                    <path d="M12 0l4 8H8z" fill="white" stroke="black" stroke-width="0.5"/>
                                 </svg>
                             </div>
                         `;
@@ -121,11 +121,9 @@
                         });
 
                         if (busMarkers[id]) {
-                            // Update icon (rotation) and slide to new GPS coordinates
                             busMarkers[id].setIcon(busIcon);
                             busMarkers[id].slideTo([lat, lon], { duration: 2000 });
                         } else {
-                            // Create new marker if it doesn't exist
                             const marker = L.marker([lat, lon], { icon: busIcon }).addTo(map);
                             marker.bindPopup(`<b>Line: ${line}</b><br>Fleet: ${fleetId}`);
                             busMarkers[id] = marker;
@@ -133,7 +131,6 @@
                     }
                 });
 
-                // Remove buses that left the API
                 for (const id in busMarkers) {
                     if (!activeIds.has(id)) {
                         map.removeLayer(busMarkers[id]);
@@ -147,7 +144,6 @@
             }
         }
 
-        // Run immediately then every 3 seconds
         updateBuses();
         setInterval(updateBuses, 3000); 
     </script>
