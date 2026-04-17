@@ -15,17 +15,17 @@
             text-align: right; pointer-events: none;
         }
 
-        /* Perfectly centered container */
+        /* Container for the dot and arrow */
         .bus-wrapper {
-            width: 30px;
-            height: 30px;
+            width: 40px;
+            height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
         }
 
-        /* The central colored dot */
+        /* The central colored dot with white border */
         .bus-dot {
             width: 14px;
             height: 14px;
@@ -35,13 +35,15 @@
             box-shadow: 0 0 4px rgba(0,0,0,0.6);
         }
 
-        /* The SVG arrow - centered rotation */
+        /* The Full White Arrow - Floating 2px off the edge */
         .bus-direction {
             position: absolute;
-            width: 30px;
-            height: 30px;
+            width: 40px;
+            height: 40px;
             z-index: 1;
             transform-origin: center center;
+            /* This shift pulls the triangle away from the center */
+            margin-top: -4px; 
             transition: transform 0.8s ease-in-out;
         }
     </style>
@@ -102,13 +104,12 @@
                         const color = getBusColor(line);
                         activeIds.add(id);
 
-                        // Icon Template: Triangle base starts near the circle edge
-                        // M12 0 means tip at top center, L16 8 L8 8 closes the triangle
+                        // Icon Template: M12 0 (Tip) L17 7 (Bottom Right) L7 7 (Bottom Left)
                         const iconHtml = `
                             <div class="bus-wrapper">
                                 <div class="bus-dot" style="background-color: ${color}"></div>
                                 <svg class="bus-direction" style="transform: rotate(${bearing}deg)" viewBox="0 0 24 24">
-                                    <path d="M12 0l4 8H8z" fill="white" stroke="black" stroke-width="0.5"/>
+                                    <path d="M12 0l5 7H7z" fill="white" />
                                 </svg>
                             </div>
                         `;
@@ -116,8 +117,8 @@
                         const busIcon = L.divIcon({
                             className: '', 
                             html: iconHtml,
-                            iconSize: [30, 30],
-                            iconAnchor: [15, 15]
+                            iconSize: [40, 40],
+                            iconAnchor: [20, 20]
                         });
 
                         if (busMarkers[id]) {
