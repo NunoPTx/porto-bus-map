@@ -7,7 +7,6 @@
     <style>
         body { margin: 0; padding: 0; background: #111; }
         #map { height: 100vh; width: 100vw; }
-        .leaflet-popup-content { font-family: sans-serif; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -25,7 +24,8 @@
 
         function getBusColor(line) {
             if (!line) return '#ffffff';
-            const s = line.toString().toUpperCase();
+            const s = line.toString().toUpperCase().trim();
+
             if (s.endsWith('M')) return '#000000'; 
             if (s.startsWith('5')) return '#fcd116'; 
             if (s.startsWith('2') || s.startsWith('3') || s.startsWith('4') || s.includes('ZC')) return '#187ec2';
@@ -43,13 +43,14 @@
                 busLayer.clearLayers();
 
                 data.forEach(bus => {
-                    // Extract Line (e.g., 401)
-                    const line = bus.name ? bus.name.value : "??";
-                    
-                    // Extract Fleet ID (e.g., 3336) 
-                    // Usually the last part of the ID: "urn:...:STCP:401:3336" -> "3336"
-                    const idParts = bus.id.split(':');
-                    const fleetId = idParts[idParts.length - 1];
+                    const fullId = bus.id;
+                    const idParts = fullId.split(':');
+                    const fleetId = idParts[idParts.length - 1]; // e.g., 3315
+
+                    // Clean the name "STCP 800 3315" -> "800"
+                    let rawName = bus.name ? bus.name.value : "";
+                    // Remove "STCP" and the fleetId from the name string
+                    let line = rawName.replace('STCP', '').replace(fleetId, '').trim();
 
                     if (bus.location && bus.location.value && bus.location.value.coordinates) {
                         const [lon, lat] = bus.location.value.coordinates;
@@ -64,7 +65,7 @@
                             fillOpacity: 1
                         });
 
-                        // Display exactly: LINE | FLEET ID
+                        // Now displays: 800 | 3315
                         marker.bindPopup(`${line} | ${fleetId}`);
                         busLayer.addLayer(marker);
                     }
