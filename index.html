@@ -5,39 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; background: #111; }
+        body { margin: 0; padding: 0; background: #111; touch-action: none; }
         #map { height: 100vh; width: 100vw; }
-        #dashboard {
+        #counter {
             position: absolute; top: 10px; right: 10px; z-index: 1000;
-            background: rgba(0,0,0,0.9); color: white; padding: 12px;
-            border-radius: 8px; font-family: monospace; border: 1px solid #444;
-            text-align: right; pointer-events: none;
+            background: rgba(0,0,0,0.85); color: white; padding: 8px 12px;
+            border-radius: 5px; font-family: sans-serif; font-size: 14px; border: 1px solid #444;
         }
-        #counter { font-weight: bold; font-size: 18px; color: #00ff00; }
-        #timestamp { font-size: 10px; color: #ffae00; display: block; margin-top: 4px; }
     </style>
 </head>
 <body>
-    <div id="dashboard">
-        <div id="counter">BUSES: --</div>
-        <div id="timestamp">SYNCING DATA...</div>
-    </div>
+    <div id="counter">Buses: Loading...</div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-marker-slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
-
     <script>
-        const map = L.map('map', { zoomControl: false }).setView([41.1579, -8.6291], 14);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO' }).addTo(map);
+        const map = L.map('map', { 
+            zoomControl: false,
+            preferCanvas: true 
+        }).setView([41.1579, -8.6291], 13);
 
-        const busMarkers = {};
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; CARTO',
+            updateWhenZooming: false,
+            updateWhenIdle: true
+        }).addTo(map);
+
+        let busLayer = L.layerGroup().addTo(map);
 
         function getBusColor(line) {
+            if (!line) return '#ffffff';
             const s = line.toString().toUpperCase().trim();
             if (s.endsWith('M')) return '#000000'; 
-            if (s.startsWith('1') || s.startsWith('2') || s.startsWith('3') || s.startsWith('4') || s.includes('ZC')) return '#187ec2';
             if (s.startsWith('5')) return '#fcd116'; 
+            if (s.startsWith('2') || s.startsWith('3') || s.startsWith('4') || s.includes('ZC')) return '#187ec2';
             if (s.startsWith('6')) return '#00ac00'; 
             if (s.startsWith('7')) return '#ff0000'; 
             if (s.startsWith('8')) return '#a347ff'; 
@@ -47,69 +48,45 @@
 
         async function updateBuses() {
             try {
-                // STRONG CACHE BUSTING: adds a unique ID to the URL and uses 'no-cache' mode
-                const response = await fetch('https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000', {
-                    cache: "no-store",
-                    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-                });
+                const response = await fetch('https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&t=' + Date.now());
                 const data = await response.json();
                 
-                document.getElementById('counter').innerText = `BUSES: ${data.length}`;
+                document.getElementById('counter').innerText = `Buses: ${data.length}`;
                 
-                const currentIds = new Set();
-                let latestDate = null;
+                const newMarkers = [];
 
                 data.forEach(bus => {
-                    const id = bus.id;
-                    const fleetId = id.split(':').pop();
-                    const line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
-                    
-                    // Track the most recent data time from the buses
-                    if (bus.dateModified) {
-                        const busDate = new Date(bus.dateModified.value);
-                        if (!latestDate || busDate > latestDate) latestDate = busDate;
-                    }
+                    const fullId = bus.id;
+                    const idParts = fullId.split(':');
+                    const fleetId = idParts[idParts.length - 1];
+                    let line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
 
-                    if (bus.location && bus.location.value.coordinates) {
+                    if (bus.location && bus.location.value && bus.location.value.coordinates) {
                         const [lon, lat] = bus.location.value.coordinates;
-                        currentIds.add(id);
+                        
+                        const marker = L.circleMarker([lat, lon], {
+                            radius: 9, 
+                            fillColor: getBusColor(line),
+                            color: "#ffffff", 
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 1,
+                            interactive: true
+                        });
 
-                        if (busMarkers[id]) {
-                            busMarkers[id].slideTo([lat, lon], { duration: 1500 });
-                        } else {
-                            const marker = L.circleMarker([lat, lon], {
-                                radius: 8,
-                                fillColor: getBusColor(line),
-                                color: "#fff",
-                                weight: 2,
-                                fillOpacity: 1
-                            }).addTo(map);
-                            marker.bindPopup(`<b>${line} | ${fleetId}</b>`);
-                            busMarkers[id] = marker;
-                        }
+                        marker.bindPopup(`<b>${line} | ${fleetId}</b>`);
+                        newMarkers.push(marker);
                     }
                 });
 
-                // Display the TRUE data age
-                if (latestDate) {
-                    const timeStr = latestDate.toLocaleTimeString('pt-PT');
-                    document.getElementById('timestamp').innerText = `DATA AGE: ${timeStr}`;
-                }
+                busLayer.clearLayers();
+                newMarkers.forEach(m => busLayer.addLayer(m));
 
-                for (const id in busMarkers) {
-                    if (!currentIds.has(id)) {
-                        map.removeLayer(busMarkers[id]);
-                        delete busMarkers[id];
-                    }
-                }
-            } catch (e) { 
-                document.getElementById('timestamp').innerText = "OFFLINE / RETRYING...";
-            }
+            } catch (e) { console.error("Update failed:", e); }
         }
 
-        // Run every 2 seconds. Any faster might trigger rate-limiting on Porto's server.
         updateBuses();
-        setInterval(updateBuses, 200); 
+        setInterval(updateBuses, 500); 
     </script>
 </body>
 </html>
