@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; background: #222; }
+        body { margin: 0; padding: 0; background: #111; }
         #map { height: 100vh; width: 100vw; }
-        /* Style the popup text for better readability */
-        .leaflet-popup-content { font-family: sans-serif; font-weight: bold; }
+        .leaflet-popup-content { font-family: 'Arial', sans-serif; font-weight: bold; color: #333; }
     </style>
 </head>
 <body>
@@ -18,22 +17,25 @@
     <script>
         const map = L.map('map').setView([41.1579, -8.6291], 13);
 
-        // Dark Map Background
+        // Simple Dark Map
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CARTO'
+            attribution: '&copy; OpenStreetMap'
         }).addTo(map);
 
         let busLayer = L.layerGroup().addTo(map);
 
-        // Logic to pick color based on the Line Number
+        // Color logic based on the line number string
         function getBusColor(line) {
-            if (line.endsWith('M')) return '#000000'; 
-            if (line.startsWith('5')) return '#fcd116'; 
-            if (line.startsWith('2') || line.startsWith('3') || line.startsWith('4') || line.startsWith('1')) return '#187ec2';
-            if (line.startsWith('6')) return '#00ac00'; 
-            if (line.startsWith('7')) return '#ff0000'; 
-            if (line.startsWith('8')) return '#a347ff'; 
-            if (line.startsWith('9')) return '#ff7900'; 
+            if (!line) return '#ffffff';
+            const s = line.toString().toUpperCase();
+
+            if (s.endsWith('M')) return '#000000'; 
+            if (s.startsWith('5')) return '#fcd116'; 
+            if (s.startsWith('2') || s.startsWith('3') || s.startsWith('4') || s.indexOf('ZC') !== -1) return '#187ec2';
+            if (s.startsWith('6')) return '#00ac00'; 
+            if (s.startsWith('7')) return '#ff0000'; 
+            if (s.startsWith('8')) return '#a347ff'; 
+            if (s.startsWith('9')) return '#ff7900'; 
             return '#ffffff'; 
         }
 
@@ -45,36 +47,35 @@
                 busLayer.clearLayers();
 
                 data.forEach(bus => {
+                    // Porto API: The line number is usually in bus.name.value
+                    const lineNum = bus.name ? bus.name.value : "??";
+                    const fullId = bus.id;
+
                     if (bus.location && bus.location.value && bus.location.value.coordinates) {
                         const [lon, lat] = bus.location.value.coordinates;
-                        
-                        // Extract the Line (e.g., 500) and the Full ID
-                        const fullId = bus.id;
-                        const lineName = fullId.split(':').pop(); 
-
-                        const busColor = getBusColor(lineName);
+                        const busColor = getBusColor(lineNum);
 
                         const marker = L.circleMarker([lat, lon], {
-                            radius: 7,
+                            radius: 8,
                             fillColor: busColor,
-                            color: "#fff", // White border so Black/Dark dots show up
-                            weight: 1.5,
+                            color: "#ffffff", // White outline
+                            weight: 2,
                             opacity: 1,
-                            fillOpacity: 0.9
+                            fillOpacity: 1
                         });
 
-                        // Display LINE | ID as requested
-                        marker.bindPopup(`${lineName} | ${fullId}`);
+                        // Set the popup to: LINE | ID
+                        marker.bindPopup(`${lineNum} | ${fullId}`);
                         busLayer.addLayer(marker);
                     }
                 });
             } catch (error) {
-                console.error("API Error:", error);
+                console.error("Data Fetch Error:", error);
             }
         }
 
         updateBuses();
-        setInterval(updateBuses, 30000); // Auto-refresh every 30 seconds
+        setInterval(updateBuses, 30000);
     </script>
 </body>
 </html>
