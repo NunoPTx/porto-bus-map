@@ -1,34 +1,41 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Porto Bus Pro Map</title>
+    <title>Porto Bus Live Map</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; background: #111; }
         #map { height: 100vh; width: 100vw; }
-        #counter {
+        
+        /* Dashboard Container */
+        #dashboard {
             position: absolute; top: 10px; right: 10px; z-index: 1000;
             background: rgba(0,0,0,0.85); color: white; padding: 10px;
             border-radius: 8px; font-family: sans-serif; border: 1px solid #444;
+            min-width: 120px; text-align: right;
         }
+        #counter { font-weight: bold; font-size: 16px; display: block; }
+        #timestamp { font-size: 11px; color: #aaa; margin-top: 4px; display: block; }
     </style>
 </head>
 <body>
-    <div id="counter">Buses: 0</div>
+    <div id="dashboard">
+        <span id="counter">Buses: 0</span>
+        <span id="timestamp">Last Update: --:--:--</span>
+    </div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-marker-slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
 
     <script>
-        const map = L.map('map', { zoomControl: false }).setView([41.1579, -8.6291], 14);
+        const map = L.map('map', { zoomControl: false, preferCanvas: false }).setView([41.1579, -8.6291], 14);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; CARTO'
         }).addTo(map);
 
-        // We store markers in an object so we can move them instead of deleting them
         const busMarkers = {};
 
         function getBusColor(line) {
@@ -45,10 +52,18 @@
 
         async function updateBuses() {
             try {
-                const response = await fetch('https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&t=' + Date.now());
+                const response = await fetch('https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&nocache=' + Date.now());
                 const data = await response.json();
                 
-                document.getElementById('counter').innerText = `Buses Live: ${data.length}`;
+                // Update Bus Count
+                document.getElementById('counter').innerText = `Buses: ${data.length}`;
+                
+                // Update Timestamp with current time
+                const now = new Date();
+                const timeString = now.getHours().toString().padStart(2, '0') + ":" + 
+                                   now.getMinutes().toString().padStart(2, '0') + ":" + 
+                                   now.getSeconds().toString().padStart(2, '0');
+                document.getElementById('timestamp').innerText = `Last Update: ${timeString}`;
 
                 const currentIds = new Set();
 
@@ -62,10 +77,9 @@
                         currentIds.add(id);
 
                         if (busMarkers[id]) {
-                            // If bus exists, SLIDE it to the new spot over 2 seconds
-                            busMarkers[id].slideTo([lat, lon], { duration: 2000 });
+                            // Slide over 0.8s for smooth motion
+                            busMarkers[id].slideTo([lat, lon], { duration: 800 });
                         } else {
-                            // If it's a new bus, create it
                             const marker = L.circleMarker([lat, lon], {
                                 radius: 8,
                                 fillColor: getBusColor(line),
@@ -80,7 +94,7 @@
                     }
                 });
 
-                // Remove buses that are no longer active
+                // Remove inactive buses
                 for (const id in busMarkers) {
                     if (!currentIds.has(id)) {
                         map.removeLayer(busMarkers[id]);
@@ -88,12 +102,12 @@
                     }
                 }
 
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error("Update failed:", e); }
         }
 
         updateBuses();
-        // Update every 5 seconds for a balance of speed and stability
-        setInterval(updateBuses, 5000); 
+        // Running at 1 second intervals as requested for "fastest possible"
+        setInterval(updateBuses, 1000); 
     </script>
 </body>
 </html>
