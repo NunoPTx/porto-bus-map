@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Porto Dark Bus Map</title>
+    <title>Porto Bus Live Map</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; background: #222; }
         #map { height: 100vh; width: 100vw; }
+        /* Style the popup text for better readability */
+        .leaflet-popup-content { font-family: sans-serif; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -14,29 +16,25 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. Setup Map with Dark Mode
         const map = L.map('map').setView([41.1579, -8.6291], 13);
 
-        // Simple Dark Map Tiles (Free from CartoDB)
+        // Dark Map Background
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap &copy; CARTO'
         }).addTo(map);
 
         let busLayer = L.layerGroup().addTo(map);
 
-        // 2. Color Logic Function
-        function getBusColor(id) {
-            // Remove prefix "urn:ngsi-ld:Vehicle:porto:STCP:" if it exists to get the line number
-            const busName = id.split(':').pop(); 
-
-            if (busName.endsWith('M')) return '#000000'; // Black for M lines
-            if (busName.startsWith('5')) return '#fcd116'; // Yellow
-            if (busName.startsWith('2') || busName.startsWith('3') || busName.startsWith('4') || busName.startsWith('ZC')) return '#187ec2'; // Blue
-            if (busName.startsWith('6')) return '#00ac00'; // Green
-            if (busName.startsWith('7')) return '#ff0000'; // Red
-            if (busName.startsWith('8')) return '#a347ff'; // Purple
-            if (busName.startsWith('9')) return '#ff7900'; // Orange
-            return '#ffffff'; // Default White
+        // Logic to pick color based on the Line Number
+        function getBusColor(line) {
+            if (line.endsWith('M')) return '#000000'; 
+            if (line.startsWith('5')) return '#fcd116'; 
+            if (line.startsWith('2') || line.startsWith('3') || line.startsWith('4') || line.startsWith('1')) return '#187ec2';
+            if (line.startsWith('6')) return '#00ac00'; 
+            if (line.startsWith('7')) return '#ff0000'; 
+            if (line.startsWith('8')) return '#a347ff'; 
+            if (line.startsWith('9')) return '#ff7900'; 
+            return '#ffffff'; 
         }
 
         async function updateBuses() {
@@ -49,29 +47,34 @@
                 data.forEach(bus => {
                     if (bus.location && bus.location.value && bus.location.value.coordinates) {
                         const [lon, lat] = bus.location.value.coordinates;
-                        const busId = bus.id;
-                        const busColor = getBusColor(busId);
+                        
+                        // Extract the Line (e.g., 500) and the Full ID
+                        const fullId = bus.id;
+                        const lineName = fullId.split(':').pop(); 
+
+                        const busColor = getBusColor(lineName);
 
                         const marker = L.circleMarker([lat, lon], {
-                            radius: 6,
+                            radius: 7,
                             fillColor: busColor,
-                            color: "#fff", // White border for visibility on dark map
-                            weight: 1,
+                            color: "#fff", // White border so Black/Dark dots show up
+                            weight: 1.5,
                             opacity: 1,
                             fillOpacity: 0.9
                         });
 
-                        marker.bindPopup(`<b>Line: ${busId.split(':').pop()}</b>`);
+                        // Display LINE | ID as requested
+                        marker.bindPopup(`${lineName} | ${fullId}`);
                         busLayer.addLayer(marker);
                     }
                 });
             } catch (error) {
-                console.error("Fetch error:", error);
+                console.error("API Error:", error);
             }
         }
 
         updateBuses();
-        setInterval(updateBuses, 30000);
+        setInterval(updateBuses, 30000); // Auto-refresh every 30 seconds
     </script>
 </body>
 </html>
