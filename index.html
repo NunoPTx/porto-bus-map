@@ -15,28 +15,30 @@
             text-align: right; pointer-events: none;
         }
 
-        /* Essential for smoothness during zoom */
-        .leaflet-zoom-anim .leaflet-zoom-animated {
-            will-change: transform;
-        }
-
+        /* Desktop Sizes (Default) */
         .bus-wrapper {
             width: 40px; height: 40px;
             display: flex; align-items: center; justify-content: center;
-            transition: transform 0.3s linear; /* Smooths the movement */
         }
-
         .bus-dot {
             width: 14px; height: 14px;
             border-radius: 50%; border: 2px solid white;
             box-shadow: 0 0 4px rgba(0,0,0,0.6);
         }
-
         .bus-direction {
             position: absolute; width: 40px; height: 40px;
             top: 0; left: 0;
             transition: transform 0.5s ease-in-out;
         }
+
+        /* Mobile Sizes (Responsive) */
+        @media (max-width: 768px) {
+            .bus-dot { width: 10px; height: 10px; border-width: 1.5px; }
+            .bus-direction { width: 30px; height: 30px; top: 5px; left: 5px; }
+            .bus-direction path { d: path("M15 6l4 5H11z"); } /* Adjust arrow for smaller viewBox scale */
+        }
+
+        .leaflet-marker-icon { transition: none !important; }
     </style>
 </head>
 <body>
@@ -51,7 +53,7 @@
     <script>
         const map = L.map('map', { 
             zoomControl: false,
-            preferCanvas: true // Faster rendering for many objects
+            preferCanvas: true 
         }).setView([41.1579, -8.6291], 14);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -60,8 +62,8 @@
 
         let busMarkers = {};
         let isZooming = false;
+        let lastSuccessfulDataHash = "";
 
-        // Prevent updates during zoom to stop flickering
         map.on('zoomstart', () => { isZooming = true; });
         map.on('zoomend', () => { isZooming = false; });
 
@@ -79,52 +81,45 @@
         }
 
         async function updateBuses() {
-            if (isZooming) return; // Skip update if user is zooming
+            if (isZooming) return;
 
             try {
                 const url = 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&t=' + Date.now();
                 const response = await fetch(url);
                 const data = await response.json();
                 
-                // --- INTEGRITY CHECK ---
-                // If API returns a tiny fraction of buses, ignore the update 
-                // to prevent buses from disappearing and reappearing.
-                if (data.length < 50 && Object.keys(busMarkers).length > 0) {
-                    console.warn("API returned partial data, skipping update...");
-                    return;
-                }
+                // Integrity Check: Only update if we get a substantial amount of buses
+                if (data.length < 50) return;
 
                 const activeIds = new Set();
+                let hasMoved = false;
 
-                // Process data before touching the DOM
                 data.forEach(bus => {
                     if (!bus.location?.value?.coordinates) return;
 
                     const id = bus.id;
                     const [lon, lat] = bus.location.value.coordinates;
                     const bearing = bus.bearing?.value || 0;
+                    const fleetId = id.split(':').pop();
+                    const line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
                     activeIds.add(id);
 
                     if (busMarkers[id]) {
                         const marker = busMarkers[id];
                         const oldLatLng = marker.getLatLng();
                         
-                        // Only move if coordinates changed
                         if (oldLatLng.lat !== lat || oldLatLng.lng !== lon) {
                             marker.setLatLng([lat, lon]);
+                            hasMoved = true;
                         }
                         
-                        // Smoothly rotate the arrow
                         const iconWrapper = marker.getElement();
                         if (iconWrapper) {
                             const svg = iconWrapper.querySelector('.bus-direction');
                             if (svg) svg.style.transform = `rotate(${bearing}deg)`;
                         }
                     } else {
-                        const fleetId = id.split(':').pop();
-                        const line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
                         const color = getBusColor(line);
-
                         const iconHtml = `
                             <div class="bus-wrapper">
                                 <div class="bus-dot" style="background-color: ${color}"></div>
@@ -134,39 +129,38 @@
                             </div>`;
 
                         const marker = L.marker([lat, lon], {
-                            icon: L.divIcon({ 
-                                className: 'bus-icon-container', 
-                                html: iconHtml, 
-                                iconSize: [40, 40], 
-                                iconAnchor: [20, 20] 
-                            })
+                            icon: L.divIcon({ className: '', html: iconHtml, iconSize: [40, 40], iconAnchor: [20, 20] })
                         }).addTo(map);
                         
-                        marker.bindPopup(`<b>Line: ${line}</b><br>Fleet: ${fleetId}`);
+                        // New Popup Format: LINE | FLEET
+                        marker.bindPopup(`<b>${line} | ${fleetId}</b>`);
                         busMarkers[id] = marker;
+                        hasMoved = true;
                     }
                 });
 
-                // Remove buses that are truly gone
+                // Check for deletions
+                let deleted = false;
                 for (const id in busMarkers) {
                     if (!activeIds.has(id)) {
                         map.removeLayer(busMarkers[id]);
                         delete busMarkers[id];
+                        deleted = true;
                     }
                 }
 
-                // Update Dashboard only after full process
-                document.getElementById('counter').innerText = `Buses: ${data.length}`;
-                document.getElementById('timestamp').innerText = `Last Sync: ${new Date().toLocaleTimeString('pt-PT')}`;
+                // Update timestamp ONLY if something actually changed (moved, added, or removed)
+                if (hasMoved || deleted) {
+                    document.getElementById('counter').innerText = `Buses: ${data.length}`;
+                    document.getElementById('timestamp').innerText = `Last Update: ${new Date().toLocaleTimeString('pt-PT')}`;
+                }
 
             } catch (e) { 
                 console.error("Fetch Error:", e);
             }
         }
 
-        // Initial load
         updateBuses();
-        // Regular sync
         setInterval(updateBuses, 3000); 
     </script>
 </body>
