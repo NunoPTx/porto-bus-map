@@ -7,42 +7,27 @@
     <style>
         body { margin: 0; padding: 0; background: #111; overflow: hidden; }
         #map { height: 100vh; width: 100vw; background: #111; }
-        
         #dashboard {
             position: absolute; top: 10px; right: 10px; z-index: 1000;
             background: rgba(0,0,0,0.85); color: white; padding: 10px;
             border-radius: 8px; font-family: sans-serif; border: 1px solid #444;
             text-align: right; pointer-events: none;
         }
-
         .bus-wrapper {
-            position: relative;
-            width: 40px; height: 40px;
+            position: relative; width: 40px; height: 40px;
             display: flex; align-items: center; justify-content: center;
         }
-
         .bus-dot {
             width: 14px; height: 14px;
             border-radius: 50%; border: 2px solid white;
-            box-shadow: 0 0 4px rgba(0,0,0,0.6);
-            z-index: 2;
+            box-shadow: 0 0 4px rgba(0,0,0,0.6); z-index: 2;
         }
-
         .bus-direction {
-            position: absolute;
-            width: 100%; height: 100%;
-            top: 0; left: 0;
-            transition: transform 0.5s ease-in-out;
-            z-index: 1;
-            pointer-events: none;
+            position: absolute; width: 100%; height: 100%;
+            top: 0; left: 0; transition: transform 0.5s ease-in-out;
+            z-index: 1; pointer-events: none;
         }
-
-        @media (max-width: 768px) {
-            .bus-wrapper {
-                transform: scale(0.7); 
-            }
-        }
-
+        @media (max-width: 768px) { .bus-wrapper { transform: scale(0.7); } }
         .leaflet-marker-icon { transition: none !important; background: none !important; border: none !important; }
     </style>
 </head>
@@ -56,14 +41,21 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        const map = L.map('map', { 
-            zoomControl: false,
-            preferCanvas: true 
-        }).setView([41.1579, -8.6291], 14);
+        const lineDestinations = {
+            "200": ["Bolhão", "Castelo do Queijo"], "201": ["Aliados", "Viso"], "202": ["Aliados", "Passeio Alegre"], "203": ["Marquês", "Castelo do Queijo"], "204": ["Hospital de São João", "Foz"], "205": ["Campanhã", "Castelo do Queijo"], "206": ["Campanhã", "Viso"], "207": ["Campanhã", "Mercado da Foz"], "208": ["Aliados", "Aldoar (Junta de Freguesia)"], "209": ["Pasteleira", "Prelada (Hosp. da Prelada)"],
+            "300": ["Circular (Via Hospital de São João)", "Circular (Via Hospital de São João)"], "301": ["Circular (Via Sá da Bandeira)", "Circular (Via Sá da Bandeira)"], "302": ["Circular (Via Aliados)", "Circular (Via Aliados)"], "303": ["Circular (Via Praça da Liberdade)", "Circular (Via Praça da Liberdade)"], "304": ["Aliados", "Santa Luzia"], "305": ["Cordoaria", "Hospital de São João"],
+            "400": ["Aliados", "Azevedo (Via Parque Nascente)"], "401": ["Bolhão", "São Roque"], "402": ["Boavista (Bom Sucesso)", "São Roque"], "403": ["Boavista (Casa da Música)", "Campanhã"], "404": ["Hospital de São João", "TIC Campanhã"],
+            "500": ["São Bento", "Matosinhos (Mercado)"], "501": ["Aliados", "Matosinhos (Praia)"], "502": ["Bolhão", "Matosinhos (Mercado)"], "503": ["Boavista (Casa da Música)", "Gatões"], "504": ["Boavista (Casa da Música)", "Norteshopping"], "505": ["Hospital de São João", "Matosinhos (Mercado)"], "506": ["Hospital de São João", "Matosinhos (Mercado)"], "507": ["Cordoaria", "MAR Shopping"], "508": ["Boavista (Bom Sucesso)", "Cabo do Mundo"],
+            "600": ["Aliados", "Maia (Barca)"], "601": ["Cordoaria", "Aeroporto (Via Mar Shopping)"], "602": ["Cordoaria", "Aeroporto (Via Padrão de Moreira)"], "603": ["Marquês", "Maia (Zoo)"], "604": ["Hospital de São João", "Aeroporto (Via Crestins)"], "605": ["Marquês", "Maia (Previsende)"],
+            "700": ["Bolhão", "Campo"], "701": ["Bolhão", "Codiceira"], "702": ["Bolhão", "Travagem"], "703": ["Cordoaria", "Sonhos"], "704": ["Boavista (Bom Sucesso)", "Codiceira"], "705": ["Hospital de São João", "Valongo (Continente)"], "706": ["Hospital de São João", "Ermesinde (Estação)"], "707": ["Hospital de São João", "Ermesinde (Sta. Rita)"],
+            "800": ["Bolhão", "Gondomar (Souto)"], "801": ["Cordoaria", "São Pedro da Cova (Passal)"], "803": ["Boavista (Bom Sucesso)", "Rio Tinto (Escola Secundária)"], "804": ["Hospital de São João", "São Pedro da Cova"], "805": ["Marquês", "Rio Tinto (Estação)"], "806": ["Marquês", "Fânzeres (Metro)"],
+            "900": ["Cordoaria", "Santo Ovídio"], "901": ["Trindade", "Valadares (Escolas)"], "902": ["Boavista (Casa da Música)", "Lavadores (Praia)"], "903": ["Boavista (Casa da Música)", "Laborim"], "904": ["Bolhão", "Coimbrões"], "905": ["Trindade", "Monte da Virgem"], "906": ["Trindade", "Madalena"], "907": ["Boavista (Bom Sucesso)", "Vila D'Este"],
+            "1M": ["Aliados", "Matosinhos (Praia)"], "2M": ["Aliados", "Hospital de São João"], "3M": ["Aliados", "Aeroporto"], "4M": ["Aliados", "Maia"], "5M": ["Aliados", "Ermesinde (Estação)"], "7M": ["Aliados", "Valongo"], "8M": ["Aliados", "São Pedro da Cova"], "9M": ["Aliados", "Gondomar (Souto)"], "10M": ["Aliados", "Vila D'Este"], "11M": ["Hospital de São João", "Coimbrões"], "12M": ["Aliados", "Santo Ovídio"], "13M": ["Aliados", "Matosinhos (Mercado)"],
+            "ZC": ["Estádio do Dragão", "Areias"]
+        };
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; CARTO'
-        }).addTo(map);
+        const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([41.1579, -8.6291], 14);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO' }).addTo(map);
 
         let busMarkers = {};
         let isZooming = false;
@@ -86,12 +78,10 @@
 
         async function updateBuses() {
             if (isZooming) return;
-
             try {
                 const url = 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&t=' + Date.now();
                 const response = await fetch(url);
                 const data = await response.json();
-                
                 if (data.length < 50) return;
 
                 const activeIds = new Set();
@@ -99,39 +89,34 @@
 
                 data.forEach(bus => {
                     if (!bus.location?.value?.coordinates) return;
-
                     const id = bus.id;
                     const [lon, lat] = bus.location.value.coordinates;
                     const bearing = bus.bearing?.value || 0;
                     const fleetId = id.split(':').pop();
+                    const line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
                     
-                    // --- NEW SENTIDO EXTRACTION LOGIC ---
-                    let sentido = "?";
+                    let sentidoVal = "?";
                     if (bus.annotations && Array.isArray(bus.annotations.value)) {
-                        const sentidoEntry = bus.annotations.value.find(s => s.startsWith("stcp:sentido:"));
-                        if (sentidoEntry) {
-                            sentido = sentidoEntry.split(':').pop(); // Gets the "1" or "0"
-                        }
+                        const entry = bus.annotations.value.find(s => s.startsWith("stcp:sentido:"));
+                        if (entry) sentidoVal = entry.split(':').pop();
+                    }
+
+                    let sentidoText = sentidoVal;
+                    if (lineDestinations[line]) {
+                        if (sentidoVal === "0") sentidoText = lineDestinations[line][0];
+                        if (sentidoVal === "1") sentidoText = lineDestinations[line][1];
                     }
                     
-                    const line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
                     activeIds.add(id);
-
-                    const popupContent = `<b>${line} | ${fleetId} | ${sentido}</b>`;
+                    const popupContent = `<b>${line} | ${fleetId} | ${sentidoText}</b>`;
 
                     if (busMarkers[id]) {
                         const marker = busMarkers[id];
-                        const oldLatLng = marker.getLatLng();
-                        
-                        if (oldLatLng.lat !== lat || oldLatLng.lng !== lon) {
+                        if (marker.getLatLng().lat !== lat || marker.getLatLng().lng !== lon) {
                             marker.setLatLng([lat, lon]);
                             hasMoved = true;
                         }
-
-                        if (marker.getPopup().getContent() !== popupContent) {
-                            marker.setPopupContent(popupContent);
-                        }
-                        
+                        if (marker.getPopup().getContent() !== popupContent) marker.setPopupContent(popupContent);
                         const iconWrapper = marker.getElement();
                         if (iconWrapper) {
                             const svg = iconWrapper.querySelector('.bus-direction');
@@ -139,23 +124,8 @@
                         }
                     } else {
                         const color = getBusColor(line);
-                        const iconHtml = `
-                            <div class="bus-wrapper">
-                                <div class="bus-dot" style="background-color: ${color}"></div>
-                                <svg class="bus-direction" style="transform: rotate(${bearing}deg)" viewBox="0 0 40 40">
-                                    <path d="M20 4l5 8H15z" fill="white" />
-                                </svg>
-                            </div>`;
-
-                        const marker = L.marker([lat, lon], {
-                            icon: L.divIcon({ 
-                                className: 'bus-custom-icon', 
-                                html: iconHtml, 
-                                iconSize: [40, 40], 
-                                iconAnchor: [20, 20] 
-                            })
-                        }).addTo(map);
-                        
+                        const iconHtml = `<div class="bus-wrapper"><div class="bus-dot" style="background-color: ${color}"></div><svg class="bus-direction" style="transform: rotate(${bearing}deg)" viewBox="0 0 40 40"><path d="M20 4l5 8H15z" fill="white" /></svg></div>`;
+                        const marker = L.marker([lat, lon], { icon: L.divIcon({ className: 'bus-custom-icon', html: iconHtml, iconSize: [40, 40], iconAnchor: [20, 20] })}).addTo(map);
                         marker.bindPopup(popupContent);
                         busMarkers[id] = marker;
                         hasMoved = true;
@@ -164,21 +134,13 @@
 
                 let deleted = false;
                 for (const id in busMarkers) {
-                    if (!activeIds.has(id)) {
-                        map.removeLayer(busMarkers[id]);
-                        delete busMarkers[id];
-                        deleted = true;
-                    }
+                    if (!activeIds.has(id)) { map.removeLayer(busMarkers[id]); delete busMarkers[id]; deleted = true; }
                 }
-
                 if (hasMoved || deleted) {
                     document.getElementById('counter').innerText = `Buses: ${data.length}`;
                     document.getElementById('timestamp').innerText = `Last Update: ${new Date().toLocaleTimeString('pt-PT')}`;
                 }
-
-            } catch (e) { 
-                console.error("Fetch Error:", e);
-            }
+            } catch (e) { console.error(e); }
         }
 
         updateBuses();
