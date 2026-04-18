@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; background: #111; touch-action: none; overflow: hidden; }
+        body { margin: 0; padding: 0; background: #111; overflow: hidden; }
         #map { height: 100vh; width: 100vw; background: #111; }
         
         #dashboard {
@@ -15,16 +15,15 @@
             text-align: right; pointer-events: none;
         }
 
-        /* Prevents the browser from trying to animate zoom/movements */
-        .leaflet-marker-icon {
-            transition: none !important;
-            animation: none !important;
-            will-change: transform; /* Helps GPU performance */
+        /* Essential for smoothness during zoom */
+        .leaflet-zoom-anim .leaflet-zoom-animated {
+            will-change: transform;
         }
 
         .bus-wrapper {
             width: 40px; height: 40px;
             display: flex; align-items: center; justify-content: center;
+            transition: transform 0.3s linear; /* Smooths the movement */
         }
 
         .bus-dot {
@@ -36,13 +35,14 @@
         .bus-direction {
             position: absolute; width: 40px; height: 40px;
             top: 0; left: 0;
+            transition: transform 0.5s ease-in-out;
         }
     </style>
 </head>
 <body>
     <div id="dashboard">
-        <div id="counter" style="font-weight:bold; font-size: 16px;">Buses: Loading...</div>
-        <div id="timestamp" style="font-size:10px; color:#aaa; margin-top:2px;">Syncing...</div>
+        <div id="counter" style="font-weight:bold; font-size: 16px;">Connecting...</div>
+        <div id="timestamp" style="font-size:10px; color:#aaa; margin-top:2px;">Waiting for data...</div>
     </div>
     <div id="map"></div>
 
@@ -51,9 +51,7 @@
     <script>
         const map = L.map('map', { 
             zoomControl: false,
-            markerZoomAnimation: false,
-            fadeAnimation: false,
-            inertia: false // Disabling inertia reduces drag lag
+            preferCanvas: true // Faster rendering for many objects
         }).setView([41.1579, -8.6291], 14);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -61,6 +59,11 @@
         }).addTo(map);
 
         let busMarkers = {};
+        let isZooming = false;
+
+        // Prevent updates during zoom to stop flickering
+        map.on('zoomstart', () => { isZooming = true; });
+        map.on('zoomend', () => { isZooming = false; });
 
         function getBusColor(line) {
             if (!line) return '#ffffff';
@@ -76,16 +79,24 @@
         }
 
         async function updateBuses() {
+            if (isZooming) return; // Skip update if user is zooming
+
             try {
                 const url = 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&t=' + Date.now();
                 const response = await fetch(url);
                 const data = await response.json();
                 
-                document.getElementById('counter').innerText = `Buses: ${data.length}`;
-                document.getElementById('timestamp').innerText = `Last Sync: ${new Date().toLocaleTimeString('pt-PT')}`;
-                
+                // --- INTEGRITY CHECK ---
+                // If API returns a tiny fraction of buses, ignore the update 
+                // to prevent buses from disappearing and reappearing.
+                if (data.length < 50 && Object.keys(busMarkers).length > 0) {
+                    console.warn("API returned partial data, skipping update...");
+                    return;
+                }
+
                 const activeIds = new Set();
 
+                // Process data before touching the DOM
                 data.forEach(bus => {
                     if (!bus.location?.value?.coordinates) return;
 
@@ -98,19 +109,18 @@
                         const marker = busMarkers[id];
                         const oldLatLng = marker.getLatLng();
                         
-                        // ONLY update if the bus actually moved (prevents constant re-rendering)
+                        // Only move if coordinates changed
                         if (oldLatLng.lat !== lat || oldLatLng.lng !== lon) {
                             marker.setLatLng([lat, lon]);
                         }
                         
-                        // Update rotation via direct CSS (much faster than setIcon)
+                        // Smoothly rotate the arrow
                         const iconWrapper = marker.getElement();
                         if (iconWrapper) {
                             const svg = iconWrapper.querySelector('.bus-direction');
                             if (svg) svg.style.transform = `rotate(${bearing}deg)`;
                         }
                     } else {
-                        // Create new bus
                         const fleetId = id.split(':').pop();
                         const line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
                         const color = getBusColor(line);
@@ -124,7 +134,12 @@
                             </div>`;
 
                         const marker = L.marker([lat, lon], {
-                            icon: L.divIcon({ className: '', html: iconHtml, iconSize: [40, 40], iconAnchor: [20, 20] })
+                            icon: L.divIcon({ 
+                                className: 'bus-icon-container', 
+                                html: iconHtml, 
+                                iconSize: [40, 40], 
+                                iconAnchor: [20, 20] 
+                            })
                         }).addTo(map);
                         
                         marker.bindPopup(`<b>Line: ${line}</b><br>Fleet: ${fleetId}`);
@@ -132,18 +147,26 @@
                     }
                 });
 
+                // Remove buses that are truly gone
                 for (const id in busMarkers) {
                     if (!activeIds.has(id)) {
                         map.removeLayer(busMarkers[id]);
                         delete busMarkers[id];
                     }
                 }
+
+                // Update Dashboard only after full process
+                document.getElementById('counter').innerText = `Buses: ${data.length}`;
+                document.getElementById('timestamp').innerText = `Last Sync: ${new Date().toLocaleTimeString('pt-PT')}`;
+
             } catch (e) { 
                 console.error("Fetch Error:", e);
             }
         }
 
+        // Initial load
         updateBuses();
+        // Regular sync
         setInterval(updateBuses, 3000); 
     </script>
 </body>
