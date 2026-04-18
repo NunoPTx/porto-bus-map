@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; background: #111; touch-action: none; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; }
+        #map { height: 100vh; width: 100vw; background: #111; }
         
         #dashboard {
             position: absolute; top: 10px; right: 10px; z-index: 1000;
@@ -15,9 +15,12 @@
             text-align: right; pointer-events: none;
         }
 
-        /* MAGIC FIX: This makes markers slide smoothly when coordinates update */
-        .leaflet-marker-icon {
-            transition: transform 2.8s linear !important;
+        /* FORCE INSTANT PLACEMENT - Fixes the "sliding" on zoom */
+        .leaflet-marker-icon, 
+        .leaflet-marker-pane canvas, 
+        .leaflet-marker-pane svg {
+            transition: none !important;
+            animation: none !important;
         }
 
         .bus-wrapper {
@@ -48,8 +51,6 @@
             z-index: 1;
             display: block;
             transform-origin: center center;
-            /* Rotation transition for when the bus turns */
-            transition: transform 0.8s ease-in-out;
         }
     </style>
 </head>
@@ -63,7 +64,11 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        const map = L.map('map', { zoomControl: false }).setView([41.1579, -8.6291], 14);
+        const map = L.map('map', { 
+            zoomControl: false,
+            fadeAnimation: false, // Disabling map fades for snappier performance
+            markerZoomAnimation: false // Disabling marker zoom animations
+        }).setView([41.1579, -8.6291], 14);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; CARTO'
@@ -85,11 +90,7 @@
         }
 
         async function updateBuses() {
-            // Prevent updates during heavy map movement to save CPU
-            if (map._animatingZoom) return;
-
             try {
-                // Using t=Date.now() to bypass cache
                 const url = 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&t=' + Date.now();
                 const response = await fetch(url);
                 const data = await response.json();
@@ -104,9 +105,9 @@
                     const fleetId = id.split(':').pop();
                     let line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
 
-                    if (bus.location && bus.location.value && bus.location.value.coordinates) {
+                    if (bus.location?.value?.coordinates) {
                         const [lon, lat] = bus.location.value.coordinates;
-                        const bearing = (bus.bearing && bus.bearing.value) ? bus.bearing.value : 0;
+                        const bearing = bus.bearing?.value || 0;
                         const color = getBusColor(line);
                         activeIds.add(id);
 
@@ -127,11 +128,9 @@
                         });
 
                         if (busMarkers[id]) {
-                            // Update existing bus
                             busMarkers[id].setLatLng([lat, lon]);
                             busMarkers[id].setIcon(busIcon);
                         } else {
-                            // Create new bus marker
                             const marker = L.marker([lat, lon], { icon: busIcon }).addTo(map);
                             marker.bindPopup(`<b>Line: ${line}</b><br>Fleet: ${fleetId}`);
                             busMarkers[id] = marker;
@@ -139,22 +138,18 @@
                     }
                 });
 
-                // Remove buses that are no longer in the API data
                 for (const id in busMarkers) {
                     if (!activeIds.has(id)) {
                         map.removeLayer(busMarkers[id]);
                         delete busMarkers[id];
                     }
                 }
-
             } catch (e) { 
                 console.error("Fetch Error:", e);
-                document.getElementById('timestamp').innerText = "Network Error - Retrying...";
             }
         }
 
         updateBuses();
-        // Refresh every 3 seconds to keep it "live"
         setInterval(updateBuses, 3000); 
     </script>
 </body>
