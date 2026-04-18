@@ -15,14 +15,12 @@
             text-align: right; pointer-events: none;
         }
 
-        /* Container stays the same size for hit-box consistency */
         .bus-wrapper {
             position: relative;
             width: 40px; height: 40px;
             display: flex; align-items: center; justify-content: center;
         }
 
-        /* Center the dot inside the wrapper */
         .bus-dot {
             width: 14px; height: 14px;
             border-radius: 50%; border: 2px solid white;
@@ -30,7 +28,6 @@
             z-index: 2;
         }
 
-        /* Center the arrow SVG inside the wrapper */
         .bus-direction {
             position: absolute;
             width: 100%; height: 100%;
@@ -40,10 +37,9 @@
             pointer-events: none;
         }
 
-        /* Mobile Scale-down using Transform (keeps alignment perfect) */
         @media (max-width: 768px) {
             .bus-wrapper {
-                transform: scale(0.7); /* Shrinks everything proportionally */
+                transform: scale(0.7); 
             }
         }
 
@@ -108,7 +104,11 @@
                     const [lon, lat] = bus.location.value.coordinates;
                     const bearing = bus.bearing?.value || 0;
                     const fleetId = id.split(':').pop();
+                    
+                    // Logic for Line and Sentido
                     const line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
+                    const sentido = bus.sentido ? bus.sentido.value : "?";
+                    
                     activeIds.add(id);
 
                     if (busMarkers[id]) {
@@ -119,6 +119,12 @@
                             marker.setLatLng([lat, lon]);
                             hasMoved = true;
                         }
+
+                        // Check if popup content needs updating (if sentido changed mid-route)
+                        const newPopupContent = `<b>${line} | ${fleetId} | ${sentido}</b>`;
+                        if (marker.getPopup().getContent() !== newPopupContent) {
+                            marker.setPopupContent(newPopupContent);
+                        }
                         
                         const iconWrapper = marker.getElement();
                         if (iconWrapper) {
@@ -127,7 +133,6 @@
                         }
                     } else {
                         const color = getBusColor(line);
-                        // Using a centered arrow path: M20,5 (Top) L25,13 (Bottom Right) L15,13 (Bottom Left) Z
                         const iconHtml = `
                             <div class="bus-wrapper">
                                 <div class="bus-dot" style="background-color: ${color}"></div>
@@ -145,7 +150,8 @@
                             })
                         }).addTo(map);
                         
-                        marker.bindPopup(`<b>${line} | ${fleetId}</b>`);
+                        // Set Popup: LINE | FLEET | SENTIDO
+                        marker.bindPopup(`<b>${line} | ${fleetId} | ${sentido}</b>`);
                         busMarkers[id] = marker;
                         hasMoved = true;
                     }
