@@ -105,11 +105,19 @@
                     const bearing = bus.bearing?.value || 0;
                     const fleetId = id.split(':').pop();
                     
-                    // Logic for Line and Sentido
-                    const line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
-                    const sentido = bus.sentido ? bus.sentido.value : "?";
+                    // --- NEW SENTIDO EXTRACTION LOGIC ---
+                    let sentido = "?";
+                    if (bus.annotations && Array.isArray(bus.annotations.value)) {
+                        const sentidoEntry = bus.annotations.value.find(s => s.startsWith("stcp:sentido:"));
+                        if (sentidoEntry) {
+                            sentido = sentidoEntry.split(':').pop(); // Gets the "1" or "0"
+                        }
+                    }
                     
+                    const line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
                     activeIds.add(id);
+
+                    const popupContent = `<b>${line} | ${fleetId} | ${sentido}</b>`;
 
                     if (busMarkers[id]) {
                         const marker = busMarkers[id];
@@ -120,10 +128,8 @@
                             hasMoved = true;
                         }
 
-                        // Check if popup content needs updating (if sentido changed mid-route)
-                        const newPopupContent = `<b>${line} | ${fleetId} | ${sentido}</b>`;
-                        if (marker.getPopup().getContent() !== newPopupContent) {
-                            marker.setPopupContent(newPopupContent);
+                        if (marker.getPopup().getContent() !== popupContent) {
+                            marker.setPopupContent(popupContent);
                         }
                         
                         const iconWrapper = marker.getElement();
@@ -150,8 +156,7 @@
                             })
                         }).addTo(map);
                         
-                        // Set Popup: LINE | FLEET | SENTIDO
-                        marker.bindPopup(`<b>${line} | ${fleetId} | ${sentido}</b>`);
+                        marker.bindPopup(popupContent);
                         busMarkers[id] = marker;
                         hasMoved = true;
                     }
