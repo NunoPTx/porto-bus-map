@@ -5,14 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; background: #111; touch-action: none; overflow: hidden; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; background: #111; overflow: hidden; }
         #map { height: 100vh; width: 100vw; }
-        
+
         #dashboard {
             position: absolute; top: 10px; right: 10px; z-index: 1000;
-            background: rgba(0,0,0,0.85); color: white; padding: 10px;
-            border-radius: 8px; font-family: sans-serif; border: 1px solid #444;
-            text-align: right; pointer-events: none;
+            background: rgba(0,0,0,0.85); color: white; padding: 10px 14px;
+            border-radius: 8px; font-family: monospace; border: 1px solid #333;
+            text-align: right; pointer-events: none; min-width: 180px;
+        }
+        #counter { font-weight: bold; font-size: 15px; }
+        #timestamp { font-size: 10px; color: #aaa; margin-top: 3px; }
+        #status-dot {
+            display: inline-block; width: 8px; height: 8px;
+            border-radius: 50%; background: #555; margin-right: 5px;
+            vertical-align: middle;
         }
 
         .bus-wrapper {
@@ -20,132 +28,220 @@
             display: flex; align-items: center; justify-content: center;
             position: relative;
         }
-
         .bus-dot {
-            width: 14px; height: 14px;
-            border-radius: 50%; border: 2px solid white;
-            z-index: 2; position: relative;
+            width: 14px; height: 14px; border-radius: 50%;
+            border: 2px solid white; z-index: 2; position: relative;
             box-shadow: 0 0 4px rgba(0,0,0,0.6);
         }
-
         .bus-direction {
             position: absolute; width: 40px; height: 40px;
             top: 0; left: 0; z-index: 1;
-            display: block; transform-origin: center center;
+            transform-origin: center center;
             transition: transform 0.8s ease-in-out;
+        }
+
+        #error-banner {
+            display: none;
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: rgba(200,50,50,0.92); color: white;
+            padding: 8px 16px; border-radius: 6px; font-family: monospace;
+            font-size: 12px; max-width: 90vw; text-align: center;
         }
     </style>
 </head>
 <body>
     <div id="dashboard">
-        <div id="counter" style="font-weight:bold; font-size: 16px;">Buses: Loading...</div>
-        <div id="timestamp" style="font-size:10px; color:#aaa; margin-top:2px;">Syncing...</div>
+        <div id="counter"><span id="status-dot"></span>Buses: —</div>
+        <div id="timestamp">Connecting...</div>
     </div>
+    <div id="error-banner"></div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-marker-slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
 
     <script>
-        const map = L.map('map', { zoomControl: false }).setView([41.1579, -8.6291], 14);
+    (() => {
+        // ── Config ──────────────────────────────────────────────────────────
+        const TARGET_URL = 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000';
 
+        // Multiple CORS proxies — tries each in order if previous fails
+        const PROXIES = [
+            u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+            u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+            u => `https://cors-anywhere.herokuapp.com/${u}`,
+        ];
+
+        const POLL_INTERVAL = 4000;   // ms between successful fetches
+        const FETCH_TIMEOUT = 10000;  // ms before aborting a request
+        const MAX_BACKOFF   = 30000;
+
+        // ── Map setup ───────────────────────────────────────────────────────
+        const map = L.map('map', { zoomControl: false }).setView([41.1579, -8.6291], 14);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; CARTO'
+            attribution: '&copy; CARTO', maxZoom: 19
         }).addTo(map);
 
-        let busMarkers = {};
+        // ── State ───────────────────────────────────────────────────────────
+        let busMarkers  = {};
+        let isFetching  = false;
+        let proxyIndex  = 0;
+        let retryDelay  = POLL_INTERVAL;
+        let loopTimer   = null;
 
+        // ── UI helpers ──────────────────────────────────────────────────────
+        const dot       = document.getElementById('status-dot');
+        const counterEl = document.getElementById('counter');
+        const tsEl      = document.getElementById('timestamp');
+        const errBanner = document.getElementById('error-banner');
+
+        function setDot(color) { dot.style.background = color; }
+        function setStatus(msg, color = '#aaa') {
+            tsEl.style.color = color; tsEl.textContent = msg;
+        }
+        function showError(msg) {
+            errBanner.textContent = msg;
+            errBanner.style.display = 'block';
+            setTimeout(() => errBanner.style.display = 'none', 5000);
+        }
+
+        // ── Bus colour by line ──────────────────────────────────────────────
         function getBusColor(line) {
             if (!line) return '#ffffff';
             const s = line.toString().toUpperCase().trim();
-            if (s.endsWith('M')) return '#000000'; 
-            if (s.startsWith('1') || s.startsWith('2') || s.startsWith('3') || s.startsWith('4') || s.includes('ZC')) return '#187ec2';
-            if (s.startsWith('5')) return '#fcd116'; 
-            if (s.startsWith('6')) return '#00ac00'; 
-            if (s.startsWith('7')) return '#ff0000'; 
-            if (s.startsWith('8')) return '#a347ff'; 
-            if (s.startsWith('9')) return '#ff7900'; 
-            return '#ffffff'; 
+            if (s.endsWith('M'))   return '#555555';
+            if (/^[1-4]|ZC/.test(s)) return '#187ec2';
+            if (s.startsWith('5')) return '#fcd116';
+            if (s.startsWith('6')) return '#00ac00';
+            if (s.startsWith('7')) return '#ff0000';
+            if (s.startsWith('8')) return '#a347ff';
+            if (s.startsWith('9')) return '#ff7900';
+            return '#ffffff';
         }
 
-        async function updateBuses() {
-            // Pause updates during map interaction to prevent glitches
-            if (map._animatingZoom || map.dragging.moving()) return;
-
+        // ── Fetch with timeout ──────────────────────────────────────────────
+        async function fetchWithTimeout(url, ms) {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), ms);
             try {
-                // Simplified fetch. Use ONLY the timestamp in the URL for cache busting.
-                // This avoids triggering CORS preflight OPTIONS requests.
-                const url = 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&cb=' + new Date().getTime();
-                
-                const response = await fetch(url);
-                
-                if (!response.ok) throw new Error('Network response was not ok');
-                
-                const data = await response.json();
-                
-                document.getElementById('counter').innerText = `Buses: ${data.length}`;
-                document.getElementById('timestamp').innerText = `Last Sync: ${new Date().toLocaleTimeString('pt-PT')}`;
-                
-                const activeIds = new Set();
-
-                data.forEach(bus => {
-                    const id = bus.id;
-                    const fleetId = id.split(':').pop();
-                    let line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
-
-                    if (bus.location && bus.location.value && bus.location.value.coordinates) {
-                        const [lon, lat] = bus.location.value.coordinates;
-                        const bearing = (bus.bearing && bus.bearing.value) ? bus.bearing.value : 0;
-                        const color = getBusColor(line);
-                        activeIds.add(id);
-
-                        const iconHtml = `
-                            <div class="bus-wrapper">
-                                <div class="bus-dot" style="background-color: ${color}"></div>
-                                <svg class="bus-direction" style="transform: rotate(${bearing}deg)" viewBox="0 0 40 40">
-                                    <path d="M20 4l5 7H15z" fill="white" />
-                                </svg>
-                            </div>
-                        `;
-
-                        const busIcon = L.divIcon({
-                            className: '', 
-                            html: iconHtml,
-                            iconSize: [40, 40],
-                            iconAnchor: [20, 20]
-                        });
-
-                        if (busMarkers[id]) {
-                            busMarkers[id].setIcon(busIcon);
-                            busMarkers[id].slideTo([lat, lon], { duration: 2500 }); // Smooth slide over 2.5s
-                        } else {
-                            const marker = L.marker([lat, lon], { icon: busIcon }).addTo(map);
-                            marker.bindPopup(`<b>Line: ${line}</b><br>Fleet: ${fleetId}`);
-                            busMarkers[id] = marker;
-                        }
-                    }
+                const res = await fetch(url, {
+                    signal: ctrl.signal,
+                    headers: { 'Accept': 'application/json' }
                 });
-
-                // Clear out stale markers
-                for (const id in busMarkers) {
-                    if (!activeIds.has(id)) {
-                        map.removeLayer(busMarkers[id]);
-                        delete busMarkers[id];
-                    }
-                }
-
-            } catch (e) { 
-                console.warn("Fetch failed, will retry:", e);
-                document.getElementById('timestamp').innerText = "Syncing...";
+                return res;
+            } finally {
+                clearTimeout(timer);
             }
         }
 
-        // Initial call
-        updateBuses();
-        
-        // Update every 4 seconds. 
-        // 3 seconds or less often triggers rate-limits on public city servers.
-        setInterval(updateBuses, 4000); 
+        // Try proxies in order; rotate to next on failure
+        async function fetchBuses() {
+            const attempts = PROXIES.length;
+            for (let i = 0; i < attempts; i++) {
+                const idx = (proxyIndex + i) % PROXIES.length;
+                const url = PROXIES[idx](TARGET_URL);
+                try {
+                    const res = await fetchWithTimeout(url, FETCH_TIMEOUT);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const data = await res.json();
+                    proxyIndex = idx;
+                    return data;
+                } catch (e) {
+                    console.warn(`Proxy ${idx} failed:`, e.message);
+                }
+            }
+            throw new Error('All proxies failed');
+        }
+
+        // ── Render buses ────────────────────────────────────────────────────
+        function renderBuses(data) {
+            const activeIds = new Set();
+
+            data.forEach(bus => {
+                const id = bus.id;
+                const fleetId = id.split(':').pop();
+                const rawName = bus.name?.value ?? '';
+                let line = rawName.replace('STCP', '').replace(fleetId, '').trim() || '??';
+
+                const coords = bus.location?.value?.coordinates;
+                if (!coords) return;
+
+                const [lon, lat] = coords;
+                if (isNaN(lat) || isNaN(lon)) return;
+
+                const bearing = bus.bearing?.value ?? 0;
+                const color   = getBusColor(line);
+                activeIds.add(id);
+
+                const iconHtml = `
+                    <div class="bus-wrapper">
+                        <div class="bus-dot" style="background-color:${color}"></div>
+                        <svg class="bus-direction" style="transform:rotate(${bearing}deg)" viewBox="0 0 40 40">
+                            <path d="M20 4l5 7H15z" fill="white"/>
+                        </svg>
+                    </div>`;
+
+                const icon = L.divIcon({ className: '', html: iconHtml, iconSize: [40,40], iconAnchor: [20,20] });
+
+                if (busMarkers[id]) {
+                    busMarkers[id].setIcon(icon);
+                    busMarkers[id].slideTo([lat, lon], { duration: 2500 });
+                } else {
+                    const m = L.marker([lat, lon], { icon }).addTo(map);
+                    m.bindPopup(`<b>Line: ${line}</b><br>Fleet: ${fleetId}`);
+                    busMarkers[id] = m;
+                }
+            });
+
+            // Remove stale markers
+            for (const id in busMarkers) {
+                if (!activeIds.has(id)) {
+                    map.removeLayer(busMarkers[id]);
+                    delete busMarkers[id];
+                }
+            }
+
+            counterEl.innerHTML = `<span id="status-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#2ecc71;margin-right:5px;vertical-align:middle"></span>Buses: ${activeIds.size}`;
+            setStatus(`Updated ${new Date().toLocaleTimeString('pt-PT')}`, '#6f6');
+        }
+
+        // ── Main poll loop ──────────────────────────────────────────────────
+        async function tick() {
+            if (isFetching) return;
+            isFetching = true;
+            setDot('#f0a500'); // amber = fetching
+
+            try {
+                const data = await fetchBuses();
+                renderBuses(data);
+                retryDelay = POLL_INTERVAL;
+            } catch (e) {
+                console.error('Update failed:', e);
+                setDot('#e74c3c');
+                setStatus(`Failed — retry in ${Math.round(retryDelay/1000)}s`, '#f66');
+                showError(`⚠ Could not reach Porto bus API. Retrying in ${Math.round(retryDelay/1000)}s…`);
+                retryDelay = Math.min(retryDelay * 1.5, MAX_BACKOFF);
+            } finally {
+                isFetching = false;
+                loopTimer = setTimeout(tick, retryDelay);
+            }
+        }
+
+        // ── Visibility API — pause when tab is hidden ───────────────────────
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                clearTimeout(loopTimer);
+                setDot('#555');
+                setStatus('Paused (tab hidden)', '#888');
+            } else {
+                setStatus('Resuming...', '#fa0');
+                tick();
+            }
+        });
+
+        // Kick it off
+        tick();
+    })();
     </script>
 </body>
 </html>
