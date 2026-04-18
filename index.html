@@ -15,37 +15,23 @@
             text-align: right; pointer-events: none;
         }
 
-        /* The container centered exactly on the coordinates */
         .bus-wrapper {
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
             position: relative;
         }
 
-        /* The central colored dot */
         .bus-dot {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            border: 2px solid white;
-            z-index: 2;
-            position: relative; /* Keep it centered inside flex */
+            width: 14px; height: 14px;
+            border-radius: 50%; border: 2px solid white;
+            z-index: 2; position: relative;
             box-shadow: 0 0 4px rgba(0,0,0,0.6);
         }
 
-        /* The Arrow: Absolute positioning ensures it shares the exact center as the dot */
         .bus-direction {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            top: 0;
-            left: 0;
-            z-index: 1;
-            display: block;
-            transform-origin: center center;
+            position: absolute; width: 40px; height: 40px;
+            top: 0; left: 0; z-index: 1;
+            display: block; transform-origin: center center;
             transition: transform 0.8s ease-in-out;
         }
     </style>
@@ -83,11 +69,18 @@
         }
 
         async function updateBuses() {
+            // Pause updates during map interaction to prevent glitches
             if (map._animatingZoom || map.dragging.moving()) return;
 
             try {
-                const url = 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&t=' + Date.now();
-                const response = await fetch(url, { cache: "no-store" });
+                // Simplified fetch. Use ONLY the timestamp in the URL for cache busting.
+                // This avoids triggering CORS preflight OPTIONS requests.
+                const url = 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&cb=' + new Date().getTime();
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) throw new Error('Network response was not ok');
+                
                 const data = await response.json();
                 
                 document.getElementById('counter').innerText = `Buses: ${data.length}`;
@@ -106,9 +99,6 @@
                         const color = getBusColor(line);
                         activeIds.add(id);
 
-                        // Icon Template: 
-                        // M20 4 (Tip is at x=20, y=4 - just above the dot)
-                        // L25 11 L15 11 (The base of the triangle)
                         const iconHtml = `
                             <div class="bus-wrapper">
                                 <div class="bus-dot" style="background-color: ${color}"></div>
@@ -127,7 +117,7 @@
 
                         if (busMarkers[id]) {
                             busMarkers[id].setIcon(busIcon);
-                            busMarkers[id].slideTo([lat, lon], { duration: 2000 });
+                            busMarkers[id].slideTo([lat, lon], { duration: 2500 }); // Smooth slide over 2.5s
                         } else {
                             const marker = L.marker([lat, lon], { icon: busIcon }).addTo(map);
                             marker.bindPopup(`<b>Line: ${line}</b><br>Fleet: ${fleetId}`);
@@ -136,6 +126,7 @@
                     }
                 });
 
+                // Clear out stale markers
                 for (const id in busMarkers) {
                     if (!activeIds.has(id)) {
                         map.removeLayer(busMarkers[id]);
@@ -144,13 +135,17 @@
                 }
 
             } catch (e) { 
-                console.error("Fetch Error:", e);
-                document.getElementById('timestamp').innerText = "Reconnecting...";
+                console.warn("Fetch failed, will retry:", e);
+                document.getElementById('timestamp').innerText = "Syncing...";
             }
         }
 
+        // Initial call
         updateBuses();
-        setInterval(updateBuses, 3000); 
+        
+        // Update every 4 seconds. 
+        // 3 seconds or less often triggers rate-limits on public city servers.
+        setInterval(updateBuses, 4000); 
     </script>
 </body>
 </html>
