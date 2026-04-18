@@ -15,30 +15,39 @@
             text-align: right; pointer-events: none;
         }
 
-        /* Desktop Sizes (Default) */
+        /* Container stays the same size for hit-box consistency */
         .bus-wrapper {
+            position: relative;
             width: 40px; height: 40px;
             display: flex; align-items: center; justify-content: center;
         }
+
+        /* Center the dot inside the wrapper */
         .bus-dot {
             width: 14px; height: 14px;
             border-radius: 50%; border: 2px solid white;
             box-shadow: 0 0 4px rgba(0,0,0,0.6);
+            z-index: 2;
         }
+
+        /* Center the arrow SVG inside the wrapper */
         .bus-direction {
-            position: absolute; width: 40px; height: 40px;
+            position: absolute;
+            width: 100%; height: 100%;
             top: 0; left: 0;
             transition: transform 0.5s ease-in-out;
+            z-index: 1;
+            pointer-events: none;
         }
 
-        /* Mobile Sizes (Responsive) */
+        /* Mobile Scale-down using Transform (keeps alignment perfect) */
         @media (max-width: 768px) {
-            .bus-dot { width: 10px; height: 10px; border-width: 1.5px; }
-            .bus-direction { width: 30px; height: 30px; top: 5px; left: 5px; }
-            .bus-direction path { d: path("M15 6l4 5H11z"); } /* Adjust arrow for smaller viewBox scale */
+            .bus-wrapper {
+                transform: scale(0.7); /* Shrinks everything proportionally */
+            }
         }
 
-        .leaflet-marker-icon { transition: none !important; }
+        .leaflet-marker-icon { transition: none !important; background: none !important; border: none !important; }
     </style>
 </head>
 <body>
@@ -62,7 +71,6 @@
 
         let busMarkers = {};
         let isZooming = false;
-        let lastSuccessfulDataHash = "";
 
         map.on('zoomstart', () => { isZooming = true; });
         map.on('zoomend', () => { isZooming = false; });
@@ -88,7 +96,6 @@
                 const response = await fetch(url);
                 const data = await response.json();
                 
-                // Integrity Check: Only update if we get a substantial amount of buses
                 if (data.length < 50) return;
 
                 const activeIds = new Set();
@@ -120,26 +127,30 @@
                         }
                     } else {
                         const color = getBusColor(line);
+                        // Using a centered arrow path: M20,5 (Top) L25,13 (Bottom Right) L15,13 (Bottom Left) Z
                         const iconHtml = `
                             <div class="bus-wrapper">
                                 <div class="bus-dot" style="background-color: ${color}"></div>
                                 <svg class="bus-direction" style="transform: rotate(${bearing}deg)" viewBox="0 0 40 40">
-                                    <path d="M20 4l5 7H15z" fill="white" />
+                                    <path d="M20 4l5 8H15z" fill="white" />
                                 </svg>
                             </div>`;
 
                         const marker = L.marker([lat, lon], {
-                            icon: L.divIcon({ className: '', html: iconHtml, iconSize: [40, 40], iconAnchor: [20, 20] })
+                            icon: L.divIcon({ 
+                                className: 'bus-custom-icon', 
+                                html: iconHtml, 
+                                iconSize: [40, 40], 
+                                iconAnchor: [20, 20] 
+                            })
                         }).addTo(map);
                         
-                        // New Popup Format: LINE | FLEET
                         marker.bindPopup(`<b>${line} | ${fleetId}</b>`);
                         busMarkers[id] = marker;
                         hasMoved = true;
                     }
                 });
 
-                // Check for deletions
                 let deleted = false;
                 for (const id in busMarkers) {
                     if (!activeIds.has(id)) {
@@ -149,7 +160,6 @@
                     }
                 }
 
-                // Update timestamp ONLY if something actually changed (moved, added, or removed)
                 if (hasMoved || deleted) {
                     document.getElementById('counter').innerText = `Buses: ${data.length}`;
                     document.getElementById('timestamp').innerText = `Last Update: ${new Date().toLocaleTimeString('pt-PT')}`;
