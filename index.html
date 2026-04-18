@@ -15,42 +15,27 @@
             text-align: right; pointer-events: none;
         }
 
-        /* ANTI-FLICKER FIX: Disable all transitions and animations on markers */
-        .leaflet-marker-icon, 
-        .leaflet-marker-shadow,
-        .leaflet-zoom-animated {
+        /* Prevents the browser from trying to animate zoom/movements */
+        .leaflet-marker-icon {
             transition: none !important;
             animation: none !important;
+            will-change: transform; /* Helps GPU performance */
         }
 
         .bus-wrapper {
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
+            width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
         }
 
         .bus-dot {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            border: 2px solid white;
-            z-index: 2;
-            position: relative;
+            width: 14px; height: 14px;
+            border-radius: 50%; border: 2px solid white;
             box-shadow: 0 0 4px rgba(0,0,0,0.6);
         }
 
         .bus-direction {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            top: 0;
-            left: 0;
-            z-index: 1;
-            display: block;
-            transform-origin: center center;
+            position: absolute; width: 40px; height: 40px;
+            top: 0; left: 0;
         }
     </style>
 </head>
@@ -64,11 +49,11 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // Disable internal animations that cause flickering during zoom
         const map = L.map('map', { 
             zoomControl: false,
             markerZoomAnimation: false,
-            fadeAnimation: false 
+            fadeAnimation: false,
+            inertia: false // Disabling inertia reduces drag lag
         }).setView([41.1579, -8.6291], 14);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -91,9 +76,6 @@
         }
 
         async function updateBuses() {
-            // Check if user is currently zooming to avoid race conditions
-            if (map._animatingZoom) return;
-
             try {
                 const url = 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&t=' + Date.now();
                 const response = await fetch(url);
@@ -105,15 +87,33 @@
                 const activeIds = new Set();
 
                 data.forEach(bus => {
-                    const id = bus.id;
-                    const fleetId = id.split(':').pop();
-                    let line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
+                    if (!bus.location?.value?.coordinates) return;
 
-                    if (bus.location && bus.location.value && bus.location.value.coordinates) {
-                        const [lon, lat] = bus.location.value.coordinates;
-                        const bearing = (bus.bearing && bus.bearing.value) ? bus.bearing.value : 0;
+                    const id = bus.id;
+                    const [lon, lat] = bus.location.value.coordinates;
+                    const bearing = bus.bearing?.value || 0;
+                    activeIds.add(id);
+
+                    if (busMarkers[id]) {
+                        const marker = busMarkers[id];
+                        const oldLatLng = marker.getLatLng();
+                        
+                        // ONLY update if the bus actually moved (prevents constant re-rendering)
+                        if (oldLatLng.lat !== lat || oldLatLng.lng !== lon) {
+                            marker.setLatLng([lat, lon]);
+                        }
+                        
+                        // Update rotation via direct CSS (much faster than setIcon)
+                        const iconWrapper = marker.getElement();
+                        if (iconWrapper) {
+                            const svg = iconWrapper.querySelector('.bus-direction');
+                            if (svg) svg.style.transform = `rotate(${bearing}deg)`;
+                        }
+                    } else {
+                        // Create new bus
+                        const fleetId = id.split(':').pop();
+                        const line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
                         const color = getBusColor(line);
-                        activeIds.add(id);
 
                         const iconHtml = `
                             <div class="bus-wrapper">
@@ -121,25 +121,14 @@
                                 <svg class="bus-direction" style="transform: rotate(${bearing}deg)" viewBox="0 0 40 40">
                                     <path d="M20 4l5 7H15z" fill="white" />
                                 </svg>
-                            </div>
-                        `;
+                            </div>`;
 
-                        const busIcon = L.divIcon({
-                            className: '', 
-                            html: iconHtml,
-                            iconSize: [40, 40],
-                            iconAnchor: [20, 20]
-                        });
-
-                        if (busMarkers[id]) {
-                            // Instant update
-                            busMarkers[id].setLatLng([lat, lon]);
-                            busMarkers[id].setIcon(busIcon);
-                        } else {
-                            const marker = L.marker([lat, lon], { icon: busIcon }).addTo(map);
-                            marker.bindPopup(`<b>Line: ${line}</b><br>Fleet: ${fleetId}`);
-                            busMarkers[id] = marker;
-                        }
+                        const marker = L.marker([lat, lon], {
+                            icon: L.divIcon({ className: '', html: iconHtml, iconSize: [40, 40], iconAnchor: [20, 20] })
+                        }).addTo(map);
+                        
+                        marker.bindPopup(`<b>Line: ${line}</b><br>Fleet: ${fleetId}`);
+                        busMarkers[id] = marker;
                     }
                 });
 
@@ -149,10 +138,8 @@
                         delete busMarkers[id];
                     }
                 }
-
             } catch (e) { 
                 console.error("Fetch Error:", e);
-                document.getElementById('timestamp').innerText = "Network Error - Retrying...";
             }
         }
 
