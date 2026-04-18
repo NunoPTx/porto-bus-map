@@ -15,10 +15,10 @@
             text-align: right; pointer-events: none;
         }
 
-        /* FORCE INSTANT PLACEMENT - Fixes the "sliding" on zoom */
+        /* ANTI-FLICKER FIX: Disable all transitions and animations on markers */
         .leaflet-marker-icon, 
-        .leaflet-marker-pane canvas, 
-        .leaflet-marker-pane svg {
+        .leaflet-marker-shadow,
+        .leaflet-zoom-animated {
             transition: none !important;
             animation: none !important;
         }
@@ -64,10 +64,11 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
+        // Disable internal animations that cause flickering during zoom
         const map = L.map('map', { 
             zoomControl: false,
-            fadeAnimation: false, // Disabling map fades for snappier performance
-            markerZoomAnimation: false // Disabling marker zoom animations
+            markerZoomAnimation: false,
+            fadeAnimation: false 
         }).setView([41.1579, -8.6291], 14);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -90,6 +91,9 @@
         }
 
         async function updateBuses() {
+            // Check if user is currently zooming to avoid race conditions
+            if (map._animatingZoom) return;
+
             try {
                 const url = 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&t=' + Date.now();
                 const response = await fetch(url);
@@ -105,9 +109,9 @@
                     const fleetId = id.split(':').pop();
                     let line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
 
-                    if (bus.location?.value?.coordinates) {
+                    if (bus.location && bus.location.value && bus.location.value.coordinates) {
                         const [lon, lat] = bus.location.value.coordinates;
-                        const bearing = bus.bearing?.value || 0;
+                        const bearing = (bus.bearing && bus.bearing.value) ? bus.bearing.value : 0;
                         const color = getBusColor(line);
                         activeIds.add(id);
 
@@ -128,6 +132,7 @@
                         });
 
                         if (busMarkers[id]) {
+                            // Instant update
                             busMarkers[id].setLatLng([lat, lon]);
                             busMarkers[id].setIcon(busIcon);
                         } else {
@@ -144,8 +149,10 @@
                         delete busMarkers[id];
                     }
                 }
+
             } catch (e) { 
                 console.error("Fetch Error:", e);
+                document.getElementById('timestamp').innerText = "Network Error - Retrying...";
             }
         }
 
