@@ -43,14 +43,14 @@
     <script>
         const lineDestinations = {
             "200": ["Bolhão", "Castelo do Queijo"], "201": ["Aliados", "Viso"], "202": ["Aliados", "Passeio Alegre"], "203": ["Estádio do Dragão", "Boavista (Casa da Música)"], "204": ["Hospital de São João", "Foz"], "205": ["Campanhã", "Castelo do Queijo"], "206": ["Campanhã", "Viso"], "207": ["Campanhã", "Foz (Mercado)"], "208": ["Aliados", "Aldoar"], "209": ["Pasteleira", "Prelada"],
-            "300": ["Circular (Via Hospital de São João)", "Circular (Via Hospital de São João)"], "301": ["Circular (Via Sá da Bandeira)", "Circular (Via Sá da Bandeira)"], "302": ["Circular (Via Aliados)", "Circular (Via Aliados)"], "303": ["Circular (Via Praça da Liberdade)", "Circular (Via Praça da Liberdade)"], "304": ["Aliados", "Santa Luzia"], "305": ["Cordoaria", "Hospital de São João"],
+            "300": ["Circular", "Circular"], "301": ["Circular", "Circular"], "302": ["Circular", "Circular"], "303": ["Circular", "Circular"], "304": ["Aliados", "Santa Luzia"], "305": ["Cordoaria", "Hospital de São João"],
             "400": ["Aliados", "Parque Nascente"], "401": ["Bolhão", "São Roque"], "402": ["Boavista (Bom Sucesso)", "São Roque"], "403": ["Boavista (Casa da Música)", "Campanhã"], "404": ["Campanhã (TIC)", "Hospital de São João"],
             "500": ["São Bento", "Matosinhos (Mercado)"], "501": ["Aliados", "Matosinhos (Praia)"], "502": ["Bolhão", "Matosinhos (Mercado)"], "503": ["Boavista (Bom Sucesso)", "Gatões"], "504": ["Boavista (Casa da Música)", "Norteshopping"], "505": ["Hospital de São João", "Matosinhos (Mercado)"], "506": ["Hospital de São João", "Matosinhos (Mercado)"], "507": ["Cordoaria", "MAR Shopping"], "508": ["Boavista (Casa da Música)", "Cabo do Mundo"],
-            "600": ["Aliados", "Maia"], "601": ["Cordoaria", "Aeroporto (Via Mar Shopping)"], "602": ["Cordoaria", "Aeroporto (Via Padrão de Moreira)"], "603": ["Marquês", "Maia (Espido)"], "604": ["Hospital de São João", "Aeroporto (Via Crestins)"], "605": ["Marquês", "Maia (Barca)"],
-            "700": ["Bolhão", "Campo"], "701": ["Bolhão", "Codiceira"], "702": ["Bolhão", "Travagem"], "703": ["Cordoaria", "Ermesinde (Via Sonhos)"], "704": ["Boavista (Casa da Música)", "Codiceira"], "705": ["Hospital de São João", "Valongo (Continente)"], "706": ["Hospital de São João", "Ermesinde (Estação)"], "707": ["Hospital de São João", "Ermesinde (Estação)"],
-            "800": ["Bolhão", "Gondomar"], "801": ["Cordoaria", "São Pedro da Cova"], "803": ["Boavista (Bom Sucesso)", "Rio Tinto (Escola Secundária)"], "804": ["Hospital de São João", "São Pedro da Cova"], "805": ["Marquês", "Rio Tinto (Estação)"], "806": ["Marquês", "Fânzeres (Metro)"],
-            "900": ["Cordoaria", "Francelos"], "901": ["Trindade", "Valadares"], "902": ["Boavista (Casa da Música)", "Lavadores"], "903": ["Boavista (Casa da Música)", "Laborim"], "904": ["Bolhão", "Coimbrões"], "905": ["Trindade", "Madalena (Centro Saúde)"], "906": ["Trindade", "Madalena"], "907": ["Boavista (Bom Sucesso)", "Vila D'Este"],
-            "1M": ["Aliados", "Matosinhos (Praia)"], "2M": ["Aliados", "Hospital de São João"], "3M": ["Aliados", "Aeroporto"], "4M": ["Aliados", "Maia (Câmara)"], "5M": ["Aliados", "Ermesinde (Estação)"], "7M": ["Aliados", "Valongo"], "8M": ["Aliados", "São Pedro da Cova"], "9M": ["Aliados", "Gondomar (Via TIC)"], "10M": ["Aliados", "Vila D'Este"], "11M": ["Hospital de São João", "Coimbrões"], "12M": ["Aliados", "Santo Ovídio"], "13M": ["Aliados", "Matosinhos (Mercado)"],
+            "600": ["Aliados", "Maia"], "601": ["Cordoaria", "Aeroporto"], "602": ["Cordoaria", "Aeroporto"], "603": ["Marquês", "Maia"], "604": ["Hospital de São João", "Aeroporto"], "605": ["Marquês", "Maia"],
+            "700": ["Bolhão", "Campo"], "701": ["Bolhão", "Codiceira"], "702": ["Bolhão", "Travagem"], "703": ["Cordoaria", "Ermesinde"], "704": ["Boavista (Casa da Música)", "Codiceira"], "705": ["Hospital de São João", "Valongo"], "706": ["Hospital de São João", "Ermesinde"], "707": ["Hospital de São João", "Ermesinde"],
+            "800": ["Bolhão", "Gondomar"], "801": ["Cordoaria", "São Pedro da Cova"], "803": ["Boavista (Bom Sucesso)", "Rio Tinto"], "804": ["Hospital de São João", "São Pedro da Cova"], "805": ["Marquês", "Rio Tinto"], "806": ["Marquês", "Fânzeres"],
+            "900": ["Cordoaria", "Francelos"], "901": ["Trindade", "Valadares"], "902": ["Boavista (Casa da Música)", "Lavadores"], "903": ["Boavista (Casa da Música)", "Laborim"], "904": ["Bolhão", "Coimbrões"], "905": ["Trindade", "Madalena"], "906": ["Trindade", "Madalena"], "907": ["Boavista (Bom Sucesso)", "Vila D'Este"],
+            "1M": ["Aliados", "Matosinhos"], "2M": ["Aliados", "Hosp. S. João"], "3M": ["Aliados", "Aeroporto"], "4M": ["Aliados", "Maia"], "5M": ["Aliados", "Ermesinde"], "7M": ["Aliados", "Valongo"], "8M": ["Aliados", "S. Pedro Cova"], "9M": ["Aliados", "Gondomar"], "10M": ["Aliados", "Vila D'Este"], "11M": ["Hosp. S. João", "Coimbrões"], "12M": ["Aliados", "Sto. Ovídio"], "13M": ["Aliados", "Matosinhos"],
             "107": ["Estádio do Dragão", "Areias"]
         };
 
@@ -59,7 +59,8 @@
 
         let busMarkers = {};
         let isZooming = false;
-        let currentRouteLine = null; // Armazena a linha visual ativa
+        let currentRouteLine = null;
+        let cachedShapes = null; // Cache para não ler o ficheiro repetidamente
 
         map.on('zoomstart', () => { isZooming = true; });
         map.on('zoomend', () => { isZooming = false; });
@@ -77,41 +78,53 @@
             return '#ffffff'; 
         }
 
-        // Função para desenhar o trajeto baseado no shapes.txt que tens
         async function drawRoute(line, directionId) {
-            if (currentRouteLine) map.removeLayer(currentRouteLine);
+            // Remove linha anterior
+            if (currentRouteLine) {
+                map.removeLayer(currentRouteLine);
+                currentRouteLine = null;
+            }
             
             try {
-                // Aqui assume-se que tens um endpoint ou ficheiro que filtra o shapes.txt por line/direção
-                // Como não posso alterar a infraestrutura, esta função prepara a lógica de desenho
-                // Nota: O directionId (0 ou 1) é crucial para filtrar o shape_id correto (ex: 502_0_1 vs 502_0_2)
+                if (!cachedShapes) {
+                    const response = await fetch('shapes.txt');
+                    cachedShapes = await response.text();
+                }
                 
-                const response = await fetch('shapes.txt'); // O browser faz cache disto
-                const text = await response.text();
-                const lines = text.split('\n');
-                
-                // Filtra as coordenadas para a linha e sentido específicos
-                const coords = [];
-                const targetShapePrefix = `${line}_0_${directionId + 1}`; // Ajuste comum de GTFS para shape_id
+                const lines = cachedShapes.split('\n');
+                let coordsWithSequence = [];
+                // Padrão de shape_id: linha_sentido_variante (ex: 502_0_1)
+                const targetPrefix = `${line}_0_${directionId + 1}`;
 
                 for (let i = 1; i < lines.length; i++) {
                     const row = lines[i].split(',');
-                    if (row.length < 4) continue;
-                    if (row[3].startsWith(targetShapePrefix)) {
-                        coords.push([parseFloat(row[0]), parseFloat(row[1])]);
+                    if (row.length < 5) continue;
+                    
+                    // row[3] é o shape_id, row[4] é a sequência
+                    if (row[3].includes(targetPrefix)) {
+                        coordsWithSequence.push({
+                            lat: parseFloat(row[0]),
+                            lng: parseFloat(row[1]),
+                            seq: parseInt(row[4])
+                        });
                     }
                 }
 
-                if (coords.length > 0) {
-                    currentRouteLine = L.polyline(coords, {
+                // Ordenar por sequência para garantir linha sólida e correta
+                coordsWithSequence.sort((a, b) => a.seq - b.seq);
+                const finalCoords = coordsWithSequence.map(c => [c.lat, c.lng]);
+
+                if (finalCoords.length > 0) {
+                    currentRouteLine = L.polyline(finalCoords, {
                         color: getBusColor(line),
-                        weight: 4,
-                        opacity: 0.6,
-                        dashArray: '10, 10' // Linha tracejada ajuda a ver a direção se necessário
+                        weight: 3,
+                        opacity: 0.8,
+                        dashArray: null,
+                        lineJoin: 'round'
                     }).addTo(map);
                 }
             } catch (e) {
-                console.warn("Não foi possível carregar o trajeto visual.");
+                console.error("Erro ao processar shapes.txt:", e);
             }
         }
 
@@ -173,8 +186,16 @@
                         
                         marker.bindPopup(popupContent);
                         
-                        // EVENTO DE CLIQUE: Desenha a linha ao selecionar o autocarro
+                        // Clique: Desenha trajeto
                         marker.on('click', () => drawRoute(line, directionId));
+
+                        // Fechar popup: Remove trajeto
+                        marker.on('popupclose', () => {
+                            if (currentRouteLine) {
+                                map.removeLayer(currentRouteLine);
+                                currentRouteLine = null;
+                            }
+                        });
 
                         busMarkers[id] = marker;
                     }
