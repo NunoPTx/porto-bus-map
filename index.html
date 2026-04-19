@@ -59,6 +59,7 @@
 
         let busMarkers = {};
         let isZooming = false;
+        let currentRouteLine = null; // Armazena a linha visual ativa
 
         map.on('zoomstart', () => { isZooming = true; });
         map.on('zoomend', () => { isZooming = false; });
@@ -76,10 +77,47 @@
             return '#ffffff'; 
         }
 
+        // Função para desenhar o trajeto baseado no shapes.txt que tens
+        async function drawRoute(line, directionId) {
+            if (currentRouteLine) map.removeLayer(currentRouteLine);
+            
+            try {
+                // Aqui assume-se que tens um endpoint ou ficheiro que filtra o shapes.txt por line/direção
+                // Como não posso alterar a infraestrutura, esta função prepara a lógica de desenho
+                // Nota: O directionId (0 ou 1) é crucial para filtrar o shape_id correto (ex: 502_0_1 vs 502_0_2)
+                
+                const response = await fetch('shapes.txt'); // O browser faz cache disto
+                const text = await response.text();
+                const lines = text.split('\n');
+                
+                // Filtra as coordenadas para a linha e sentido específicos
+                const coords = [];
+                const targetShapePrefix = `${line}_0_${directionId + 1}`; // Ajuste comum de GTFS para shape_id
+
+                for (let i = 1; i < lines.length; i++) {
+                    const row = lines[i].split(',');
+                    if (row.length < 4) continue;
+                    if (row[3].startsWith(targetShapePrefix)) {
+                        coords.push([parseFloat(row[0]), parseFloat(row[1])]);
+                    }
+                }
+
+                if (coords.length > 0) {
+                    currentRouteLine = L.polyline(coords, {
+                        color: getBusColor(line),
+                        weight: 4,
+                        opacity: 0.6,
+                        dashArray: '10, 10' // Linha tracejada ajuda a ver a direção se necessário
+                    }).addTo(map);
+                }
+            } catch (e) {
+                console.warn("Não foi possível carregar o trajeto visual.");
+            }
+        }
+
         async function updateBuses() {
             if (isZooming) return;
             try {
-                // Fetching from the new STCP Live API
                 const url = 'https://corsproxy.io/?' + encodeURIComponent('https://stcp.live/api/vehicles?t=' + Date.now());
                 const response = await fetch(url);
                 const data = await response.json();
@@ -87,21 +125,18 @@
                 const activeIds = new Set();
 
                 data.forEach(bus => {
-                    // Mapped to your screenshot structure
-                    const id = bus.id;               // e.g. "1324"
-                    const lat = bus.lat;             // e.g. 41.166283
-                    const lon = bus.lng;             // e.g. -8.678182
-                    const line = bus.routeId;        // e.g. "502"
-                    const bearing = bus.bearing;     // e.g. 280
-                    const directionId = bus.directionId; // 0 or 1
+                    const id = bus.id;
+                    const lat = bus.lat;
+                    const lon = bus.lng;
+                    const line = bus.routeId;
+                    const bearing = bus.bearing;
+                    const directionId = bus.directionId; 
 
                     if (!lat || !lon) return;
                     activeIds.add(id);
 
-                    // Destination mapping logic
                     let sentidoText = directionId;
                     if (lineDestinations[line]) {
-                        // In STCP 0 is usually the return, 1 is the outbound
                         sentidoText = (directionId === 0) ? lineDestinations[line][1] : lineDestinations[line][0];
                     }
 
@@ -109,18 +144,15 @@
 
                     if (busMarkers[id]) {
                         const marker = busMarkers[id];
-                        // Update position
                         marker.setLatLng([lat, lon]);
-                        // Update popup
                         if (marker.getPopup().getContent() !== popupContent) marker.setPopupContent(popupContent);
-                        // Update rotation
+                        
                         const iconWrapper = marker.getElement();
                         if (iconWrapper) {
                             const svg = iconWrapper.querySelector('.bus-direction');
                             if (svg) svg.style.transform = `rotate(${bearing}deg)`;
                         }
                     } else {
-                        // Create new marker
                         const color = getBusColor(line);
                         const iconHtml = `
                             <div class="bus-wrapper">
@@ -140,11 +172,14 @@
                         }).addTo(map);
                         
                         marker.bindPopup(popupContent);
+                        
+                        // EVENTO DE CLIQUE: Desenha a linha ao selecionar o autocarro
+                        marker.on('click', () => drawRoute(line, directionId));
+
                         busMarkers[id] = marker;
                     }
                 });
 
-                // Remove buses no longer in the API
                 for (const id in busMarkers) {
                     if (!activeIds.has(id)) { 
                         map.removeLayer(busMarkers[id]); 
@@ -152,7 +187,6 @@
                     }
                 }
 
-                // Update UI Dashboard
                 document.getElementById('counter').innerText = `Buses: ${data.length}`;
                 document.getElementById('timestamp').innerText = `Last Update: ${new Date().toLocaleTimeString('pt-PT')}`;
 
