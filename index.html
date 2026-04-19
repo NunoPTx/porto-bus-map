@@ -79,68 +79,86 @@
         async function updateBuses() {
             if (isZooming) return;
             try {
-                const url = 'https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000&t=' + Date.now();
+                // Fetching from the new STCP Live API
+                const url = 'https://stcp.live/api/vehicles?t=' + Date.now();
                 const response = await fetch(url);
                 const data = await response.json();
-                if (data.length < 50) return;
 
                 const activeIds = new Set();
-                let hasMoved = false;
 
                 data.forEach(bus => {
-                    if (!bus.location?.value?.coordinates) return;
-                    const id = bus.id;
-                    const [lon, lat] = bus.location.value.coordinates;
-                    const bearing = bus.bearing?.value || 0;
-                    const fleetId = id.split(':').pop();
-                    const line = bus.name ? bus.name.value.replace('STCP', '').replace(fleetId, '').trim() : "??";
-                    
-                    let sentidoVal = "?";
-                    if (bus.annotations && Array.isArray(bus.annotations.value)) {
-                        const entry = bus.annotations.value.find(s => s.startsWith("stcp:sentido:"));
-                        if (entry) sentidoVal = entry.split(':').pop();
+                    // Mapped to your screenshot structure
+                    const id = bus.id;               // e.g. "1324"
+                    const lat = bus.lat;             // e.g. 41.166283
+                    const lon = bus.lng;             // e.g. -8.678182
+                    const line = bus.routeId;        // e.g. "502"
+                    const bearing = bus.bearing;     // e.g. 280
+                    const directionId = bus.directionId; // 0 or 1
+
+                    if (!lat || !lon) return;
+                    activeIds.add(id);
+
+                    // Destination mapping logic
+                    let sentidoText = directionId;
+                    if (lineDestinations[line]) {
+                        // In STCP 0 is usually the return, 1 is the outbound
+                        sentidoText = (directionId === 0) ? lineDestinations[line][1] : lineDestinations[line][0];
                     }
 
-                    let sentidoText = sentidoVal;
-                    if (lineDestinations[line]) {
-                        if (sentidoVal === "1") sentidoText = lineDestinations[line][0];
-                        if (sentidoVal === "0") sentidoText = lineDestinations[line][1];
-                    }
-                    
-                    activeIds.add(id);
-                    const popupContent = `<b>${line} | ${sentidoText} | ${fleetId}</b>`;
+                    const popupContent = `<b>${line} | ${sentidoText} | ${id}</b>`;
 
                     if (busMarkers[id]) {
                         const marker = busMarkers[id];
-                        if (marker.getLatLng().lat !== lat || marker.getLatLng().lng !== lon) {
-                            marker.setLatLng([lat, lon]);
-                            hasMoved = true;
-                        }
+                        // Update position
+                        marker.setLatLng([lat, lon]);
+                        // Update popup
                         if (marker.getPopup().getContent() !== popupContent) marker.setPopupContent(popupContent);
+                        // Update rotation
                         const iconWrapper = marker.getElement();
                         if (iconWrapper) {
                             const svg = iconWrapper.querySelector('.bus-direction');
                             if (svg) svg.style.transform = `rotate(${bearing}deg)`;
                         }
                     } else {
+                        // Create new marker
                         const color = getBusColor(line);
-                        const iconHtml = `<div class="bus-wrapper"><div class="bus-dot" style="background-color: ${color}"></div><svg class="bus-direction" style="transform: rotate(${bearing}deg)" viewBox="0 0 40 40"><path d="M20 4l5 8H15z" fill="white" /></svg></div>`;
-                        const marker = L.marker([lat, lon], { icon: L.divIcon({ className: 'bus-custom-icon', html: iconHtml, iconSize: [40, 40], iconAnchor: [20, 20] })}).addTo(map);
+                        const iconHtml = `
+                            <div class="bus-wrapper">
+                                <div class="bus-dot" style="background-color: ${color}"></div>
+                                <svg class="bus-direction" style="transform: rotate(${bearing}deg)" viewBox="0 0 40 40">
+                                    <path d="M20 4l5 8H15z" fill="white" />
+                                </svg>
+                            </div>`;
+                        
+                        const marker = L.marker([lat, lon], { 
+                            icon: L.divIcon({ 
+                                className: 'bus-custom-icon', 
+                                html: iconHtml, 
+                                iconSize: [40, 40], 
+                                iconAnchor: [20, 20] 
+                            })
+                        }).addTo(map);
+                        
                         marker.bindPopup(popupContent);
                         busMarkers[id] = marker;
-                        hasMoved = true;
                     }
                 });
 
-                let deleted = false;
+                // Remove buses no longer in the API
                 for (const id in busMarkers) {
-                    if (!activeIds.has(id)) { map.removeLayer(busMarkers[id]); delete busMarkers[id]; deleted = true; }
+                    if (!activeIds.has(id)) { 
+                        map.removeLayer(busMarkers[id]); 
+                        delete busMarkers[id]; 
+                    }
                 }
-                if (hasMoved || deleted) {
-                    document.getElementById('counter').innerText = `Buses: ${data.length}`;
-                    document.getElementById('timestamp').innerText = `Last Update: ${new Date().toLocaleTimeString('pt-PT')}`;
-                }
-            } catch (e) { console.error(e); }
+
+                // Update UI Dashboard
+                document.getElementById('counter').innerText = `Buses: ${data.length}`;
+                document.getElementById('timestamp').innerText = `Last Update: ${new Date().toLocaleTimeString('pt-PT')}`;
+
+            } catch (e) { 
+                console.error("Update failed:", e); 
+            }
         }
 
         updateBuses();
