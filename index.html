@@ -79,7 +79,6 @@
         }
 
         async function drawRoute(line, directionId) {
-            // Remove linha anterior
             if (currentRouteLine) {
                 map.removeLayer(currentRouteLine);
                 currentRouteLine = null;
@@ -93,22 +92,49 @@
                 
                 const lines = cachedShapes.split('\n');
                 let coordsWithSequence = [];
-                // Padrão de shape_id: linha_sentido_variante (ex: 502_0_1)
+                
+                // Procuramos o prefixo exato (ex: "502_0_1")
                 const targetPrefix = `${line}_0_${directionId + 1}`;
+                let detectedVariant = null;
 
                 for (let i = 1; i < lines.length; i++) {
                     const row = lines[i].split(',');
                     if (row.length < 5) continue;
                     
-                    // row[3] é o shape_id, row[4] é a sequência
-                    if (row[3].includes(targetPrefix)) {
-                        coordsWithSequence.push({
-                            lat: parseFloat(row[0]),
-                            lng: parseFloat(row[1]),
-                            seq: parseInt(row[4])
-                        });
+                    const shapeId = row[3];
+                    
+                    // Se encontrarmos o prefixo, fixamos a PRIMEIRA variante (ID completo) encontrada
+                    // Isso evita misturar pontos de variantes diferentes que criam as linhas cruzadas
+                    if (shapeId.startsWith(targetPrefix)) {
+                        if (!detectedVariant) detectedVariant = shapeId;
+                        
+                        if (shapeId === detectedVariant) {
+                            coordsWithSequence.push({
+                                lat: parseFloat(row[0]),
+                                lng: parseFloat(row[1]),
+                                seq: parseInt(row[4])
+                            });
+                        }
                     }
                 }
+
+                coordsWithSequence.sort((a, b) => a.seq - b.seq);
+                const finalCoords = coordsWithSequence.map(c => [c.lat, c.lng]);
+
+                if (finalCoords.length > 0) {
+                    currentRouteLine = L.polyline(finalCoords, {
+                        color: getBusColor(line),
+                        weight: 3,
+                        opacity: 1.0, // 100% opaco
+                        dashArray: null,
+                        lineJoin: 'round',
+                        interactive: false // A linha não interfere nos cliques
+                    }).addTo(map);
+                }
+            } catch (e) {
+                console.error("Erro ao processar trajeto:", e);
+            }
+        }
 
                 // Ordenar por sequência para garantir linha sólida e correta
                 coordsWithSequence.sort((a, b) => a.seq - b.seq);
