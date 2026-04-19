@@ -80,7 +80,7 @@
             if (isZooming) return;
             try {
                 // Fetching from the new STCP Live API
-                const url = 'https://stcp.live/api/vehicles?t=' + Date.now();
+                const url = 'https://corsproxy.io/?' + encodeURIComponent('https://stcp.live/api/vehicles?t=' + Date.now());
                 const response = await fetch(url);
                 const data = await response.json();
 
