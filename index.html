@@ -7,12 +7,35 @@
     <style>
         body { margin: 0; padding: 0; background: #111; overflow: hidden; }
         #map { height: 100vh; width: 100vw; background: #111; }
+        
         #dashboard {
             position: absolute; top: 10px; right: 10px; z-index: 1000;
             background: rgba(0,0,0,0.85); color: white; padding: 10px;
             border-radius: 8px; font-family: sans-serif; border: 1px solid #444;
             text-align: right; pointer-events: none;
         }
+
+        .user-location-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .user-dot {
+            width: 12px;
+            height: 12px;
+            background-color: #00ff00; 
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 0 15px #00ff00, 0 0 5px white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 10px #00ff00; }
+            50% { transform: scale(1.2); box-shadow: 0 0 25px #00ff00; }
+            100% { transform: scale(1); box-shadow: 0 0 10px #00ff00; }
+        }
+		
         .bus-wrapper {
             position: relative; width: 40px; height: 40px;
             display: flex; align-items: center; justify-content: center;
@@ -27,6 +50,7 @@
             top: 0; left: 0; transition: transform 0.5s ease-in-out;
             z-index: 1; pointer-events: none;
         }
+
         @media (max-width: 768px) { .bus-wrapper { transform: scale(0.7); } }
         .leaflet-marker-icon { transition: none !important; background: none !important; border: none !important; }
     </style>
@@ -41,7 +65,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        const lineDestinations = {
+const lineDestinations = {
         "200": ["Bolhão", "Castelo do Queijo"],
     	"201": ["Aliados", "Viso"],
 	    "202": ["Aliados", "Passeio Alegre"],
@@ -119,6 +143,7 @@
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO' }).addTo(map);
 
         let busMarkers = {};
+        let userMarker = null;
         let isZooming = false;
         let currentRouteLine = null;
         let cachedShapes = null;
@@ -126,6 +151,27 @@
         map.on('zoomstart', () => { isZooming = true; });
         map.on('zoomend', () => { isZooming = false; });
 
+        // --- LÓGICA DE LOCALIZAÇÃO DO UTILIZADOR ---
+        map.locate({ setView: false, watch: true });
+
+        map.on('locationfound', (e) => {
+            if (!userMarker) {
+                userMarker = L.marker(e.latlng, {
+                    icon: L.divIcon({
+                        className: 'user-location-wrapper',
+                        html: '<div class="user-dot"></div>',
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    }),
+                    zIndexOffset: 1000 // Sempre acima dos autocarros
+                }).addTo(map).bindPopup("Tu estás aqui");
+                map.setView(e.latlng, 15);
+            } else {
+                userMarker.setLatLng(e.latlng);
+            }
+        });
+
+        // --- LÓGICA DOS AUTOCARROS ---
         function getBusColor(line) {
             if (!line) return '#ffffff';
             const s = line.toString().toUpperCase().trim();
@@ -140,81 +186,49 @@
         }
 
         async function drawRoute(line, directionId) {
-            if (currentRouteLine) {
-                map.removeLayer(currentRouteLine);
-                currentRouteLine = null;
-            }
-            
+            if (currentRouteLine) { map.removeLayer(currentRouteLine); currentRouteLine = null; }
             try {
                 if (!cachedShapes) {
                     const response = await fetch('shapes.txt');
                     cachedShapes = await response.text();
                 }
-                
                 const lines = cachedShapes.split('\n');
                 let coordsWithSequence = [];
-                
-                // Logic for Circular lines: 300-303 use route_id 3 in shapes.txt
                 const circularLines = ["300", "301", "302", "303"];
                 const routeIdInFile = circularLines.includes(line.toString()) ? "3" : (directionId + 1);
                 const targetPrefix = `${line}_0_${routeIdInFile}`;
-                
                 let detectedVariant = null;
 
                 for (let i = 1; i < lines.length; i++) {
                     const row = lines[i].split(',');
                     if (row.length < 5) continue;
-                    
                     const shapeId = row[3];
-                    // Match prefix (Line_Variant_Direction)
                     if (shapeId.startsWith(targetPrefix)) {
                         if (!detectedVariant) detectedVariant = shapeId;
                         if (shapeId === detectedVariant) {
-                            coordsWithSequence.push({
-                                lat: parseFloat(row[0]),
-                                lng: parseFloat(row[1]),
-                                seq: parseInt(row[4])
-                            });
+                            coordsWithSequence.push({ lat: parseFloat(row[0]), lng: parseFloat(row[1]), seq: parseInt(row[4]) });
                         }
                     }
                 }
-
                 coordsWithSequence.sort((a, b) => a.seq - b.seq);
                 const finalCoords = coordsWithSequence.map(c => [c.lat, c.lng]);
-
                 if (finalCoords.length > 0) {
-                    currentRouteLine = L.polyline(finalCoords, {
-                        color: getBusColor(line),
-                        weight: 3,
-                        opacity: 1.0, 
-                        dashArray: null,
-                        lineJoin: 'round',
-                        interactive: false
-                    }).addTo(map);
+                    currentRouteLine = L.polyline(finalCoords, { color: getBusColor(line), weight: 4, opacity: 0.8, lineJoin: 'round' }).addTo(map);
                 }
-            } catch (e) {
-                console.error("Erro no trajeto:", e);
-            }
-		}
-		
+            } catch (e) { console.error("Erro no trajeto:", e); }
+        }
+
         async function updateBuses() {
             if (isZooming) return;
             try {
                 const url = 'https://corsproxy.io/?' + encodeURIComponent('https://stcp.live/api/vehicles?t=' + Date.now());
                 const response = await fetch(url);
                 const data = await response.json();
-
                 const activeIds = new Set();
 
                 data.forEach(bus => {
-                    const id = bus.id;
-                    const lat = bus.lat;
-                    const lon = bus.lng;
-                    const line = bus.routeId;
-                    const bearing = bus.bearing;
-                    const directionId = bus.directionId; 
-
-                    if (!lat || !lon) return;
+                    const { id, lat, lng, routeId: line, bearing, directionId } = bus;
+                    if (!lat || !lng) return;
                     activeIds.add(id);
 
                     let sentidoText = directionId;
@@ -226,9 +240,8 @@
 
                     if (busMarkers[id]) {
                         const marker = busMarkers[id];
-                        marker.setLatLng([lat, lon]);
+                        marker.setLatLng([lat, lng]);
                         if (marker.getPopup().getContent() !== popupContent) marker.setPopupContent(popupContent);
-                        
                         const iconWrapper = marker.getElement();
                         if (iconWrapper) {
                             const svg = iconWrapper.querySelector('.bus-direction');
@@ -244,43 +257,24 @@
                                 </svg>
                             </div>`;
                         
-                        const marker = L.marker([lat, lon], { 
-                            icon: L.divIcon({ 
-                                className: 'bus-custom-icon', 
-                                html: iconHtml, 
-                                iconSize: [40, 40], 
-                                iconAnchor: [20, 20] 
-                            })
+                        const marker = L.marker([lat, lng], { 
+                            icon: L.divIcon({ className: 'bus-custom-icon', html: iconHtml, iconSize: [40, 40], iconAnchor: [20, 20] })
                         }).addTo(map);
                         
                         marker.bindPopup(popupContent);
-                        
                         marker.on('click', () => drawRoute(line, directionId));
-
-                        marker.on('popupclose', () => {
-                            if (currentRouteLine) {
-                                map.removeLayer(currentRouteLine);
-                                currentRouteLine = null;
-                            }
-                        });
-
+                        marker.on('popupclose', () => { if (currentRouteLine) { map.removeLayer(currentRouteLine); currentRouteLine = null; } });
                         busMarkers[id] = marker;
                     }
                 });
 
                 for (const id in busMarkers) {
-                    if (!activeIds.has(id)) { 
-                        map.removeLayer(busMarkers[id]); 
-                        delete busMarkers[id]; 
-                    }
+                    if (!activeIds.has(id)) { map.removeLayer(busMarkers[id]); delete busMarkers[id]; }
                 }
 
                 document.getElementById('counter').innerText = `Buses: ${data.length}`;
-                document.getElementById('timestamp').innerText = `Last Update: ${new Date().toLocaleTimeString('pt-PT')}`;
-
-            } catch (e) { 
-                console.error("Update failed:", e); 
-            }
+                document.getElementById('timestamp').innerText = `Update: ${new Date().toLocaleTimeString('pt-PT')}`;
+            } catch (e) { console.error("Update failed:", e); }
         }
 
         updateBuses();
