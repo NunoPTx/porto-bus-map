@@ -139,7 +139,7 @@
             return '#ffffff'; 
         }
 
-async function drawRoute(line, directionId) {
+        async function drawRoute(line, directionId) {
             if (currentRouteLine) {
                 map.removeLayer(currentRouteLine);
                 currentRouteLine = null;
@@ -153,30 +153,17 @@ async function drawRoute(line, directionId) {
                 
                 const lines = cachedShapes.split('\n');
                 let coordsWithSequence = [];
-                
-                const lineStr = line.toString();
-                
-                // ADJUSTMENT FOR CIRCULAR LINES 300-303
-                let effectiveDirection = directionId;
-                if (["300", "301", "302", "303"].includes(lineStr)) {
-                    effectiveDirection = 3;
-                }
-
-                const targetDirectionSuffix = "|" + effectiveDirection; 
-
-                let detectedShapeId = null;
+                const targetPrefix = `${line}_0_${directionId + 1}`;
+                let detectedVariant = null;
 
                 for (let i = 1; i < lines.length; i++) {
                     const row = lines[i].split(',');
                     if (row.length < 5) continue;
                     
-                    const shapeId = row[3]; 
-                    
-                    if (shapeId.startsWith(lineStr + "_") && shapeId.endsWith(targetDirectionSuffix)) {
-                        
-                        if (!detectedShapeId) detectedShapeId = shapeId;
-                        
-                        if (shapeId === detectedShapeId) {
+                    const shapeId = row[3];
+                    if (shapeId.startsWith(targetPrefix)) {
+                        if (!detectedVariant) detectedVariant = shapeId;
+                        if (shapeId === detectedVariant) {
                             coordsWithSequence.push({
                                 lat: parseFloat(row[0]),
                                 lng: parseFloat(row[1]),
@@ -192,15 +179,15 @@ async function drawRoute(line, directionId) {
                 if (finalCoords.length > 0) {
                     currentRouteLine = L.polyline(finalCoords, {
                         color: getBusColor(line),
-                        weight: 4,
-                        opacity: 0.8,
-                        lineJoin: 'round'
+                        weight: 3,
+                        opacity: 1.0, // 100% Opaco
+                        dashArray: null,
+                        lineJoin: 'round',
+                        interactive: false
                     }).addTo(map);
-                    
-                    map.fitBounds(currentRouteLine.getBounds(), {padding: [20, 20]});
                 }
             } catch (e) {
-                console.error("Error drawing route:", e);
+                console.error("Erro no trajeto:", e);
             }
         }
 
