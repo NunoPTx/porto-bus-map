@@ -153,7 +153,12 @@
                 
                 const lines = cachedShapes.split('\n');
                 let coordsWithSequence = [];
-                const targetPrefix = `${line}_0_${directionId + 1}`;
+                
+                // Logic for Circular lines: 300-303 use route_id 3 in shapes.txt
+                const circularLines = ["300", "301", "302", "303"];
+                const routeIdInFile = circularLines.includes(line.toString()) ? "3" : (directionId + 1);
+                const targetPrefix = `${line}_0_${routeIdInFile}`;
+                
                 let detectedVariant = null;
 
                 for (let i = 1; i < lines.length; i++) {
@@ -161,6 +166,7 @@
                     if (row.length < 5) continue;
                     
                     const shapeId = row[3];
+                    // Match prefix (Line_Variant_Direction)
                     if (shapeId.startsWith(targetPrefix)) {
                         if (!detectedVariant) detectedVariant = shapeId;
                         if (shapeId === detectedVariant) {
@@ -180,7 +186,7 @@
                     currentRouteLine = L.polyline(finalCoords, {
                         color: getBusColor(line),
                         weight: 3,
-                        opacity: 1.0, // 100% Opaco
+                        opacity: 1.0, 
                         dashArray: null,
                         lineJoin: 'round',
                         interactive: false
@@ -189,8 +195,8 @@
             } catch (e) {
                 console.error("Erro no trajeto:", e);
             }
-        }
-
+		}
+		
         async function updateBuses() {
             if (isZooming) return;
             try {
