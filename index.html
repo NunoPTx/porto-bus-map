@@ -139,7 +139,7 @@
             return '#ffffff'; 
         }
 
-       async function drawRoute(line, directionId) {
+async function drawRoute(line, directionId) {
             if (currentRouteLine) {
                 map.removeLayer(currentRouteLine);
                 currentRouteLine = null;
@@ -155,9 +155,14 @@
                 let coordsWithSequence = [];
                 
                 const lineStr = line.toString();
-                // Direction remains 0 or 1 from the UI, but we need to match 
-                // the specific shape_id suffix pattern in your file.
-                const targetDirectionSuffix = "|" + directionId; 
+                
+                // ADJUSTMENT FOR CIRCULAR LINES 300-303
+                let effectiveDirection = directionId;
+                if (["300", "301", "302", "303"].includes(lineStr)) {
+                    effectiveDirection = 3;
+                }
+
+                const targetDirectionSuffix = "|" + effectiveDirection; 
 
                 let detectedShapeId = null;
 
@@ -165,15 +170,10 @@
                     const row = lines[i].split(',');
                     if (row.length < 5) continue;
                     
-                    const shapeId = row[3]; // e.g., "300_0_3|0" or "107_0_1|0"
+                    const shapeId = row[3]; 
                     
-                    // IMPROVED MATCHING:
-                    // 1. Checks if it starts with the line number (e.g., "300_")
-                    // 2. Checks if it ends with the correct direction suffix (e.g., "|0")
                     if (shapeId.startsWith(lineStr + "_") && shapeId.endsWith(targetDirectionSuffix)) {
                         
-                        // Once we find the first matching variant (like the "3" in 300_0_3|0),
-                        // we stick to it for the rest of the points.
                         if (!detectedShapeId) detectedShapeId = shapeId;
                         
                         if (shapeId === detectedShapeId) {
@@ -186,7 +186,6 @@
                     }
                 }
 
-                // Sort by sequence to ensure the line is drawn in order
                 coordsWithSequence.sort((a, b) => a.seq - b.seq);
                 const finalCoords = coordsWithSequence.map(c => [c.lat, c.lng]);
 
@@ -198,7 +197,6 @@
                         lineJoin: 'round'
                     }).addTo(map);
                     
-                    // Optional: Zoom map to fit the new route
                     map.fitBounds(currentRouteLine.getBounds(), {padding: [20, 20]});
                 }
             } catch (e) {
