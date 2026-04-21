@@ -139,7 +139,7 @@
             return '#ffffff'; 
         }
 
-        async function drawRoute(line, directionId) {
+       async function drawRoute(line, directionId) {
             if (currentRouteLine) {
                 map.removeLayer(currentRouteLine);
                 currentRouteLine = null;
@@ -154,24 +154,29 @@
                 const lines = cachedShapes.split('\n');
                 let coordsWithSequence = [];
                 
-                // MODIFIED LOGIC:
-                // Instead of a strict "LINE_0_1", we look for the line number 
-                // and the direction at the end, allowing any variant in the middle.
                 const lineStr = line.toString();
-                const targetDirection = (directionId + 1).toString();
+                // Direction remains 0 or 1 from the UI, but we need to match 
+                // the specific shape_id suffix pattern in your file.
+                const targetDirectionSuffix = "|" + directionId; 
 
-                let detectedVariant = null;
+                let detectedShapeId = null;
 
                 for (let i = 1; i < lines.length; i++) {
                     const row = lines[i].split(',');
                     if (row.length < 5) continue;
                     
-                    const shapeId = row[3]; // e.g., "300_0_3|0"
+                    const shapeId = row[3]; // e.g., "300_0_3|0" or "107_0_1|0"
                     
-                    // This checks if it starts with "300_" AND ends with "3|0" (or "1|0")
-                    if (shapeId.startsWith(lineStr + "_") && shapeId.includes("_" + targetDirection + "|")) {
-                        if (!detectedVariant) detectedVariant = shapeId;
-                        if (shapeId === detectedVariant) {
+                    // IMPROVED MATCHING:
+                    // 1. Checks if it starts with the line number (e.g., "300_")
+                    // 2. Checks if it ends with the correct direction suffix (e.g., "|0")
+                    if (shapeId.startsWith(lineStr + "_") && shapeId.endsWith(targetDirectionSuffix)) {
+                        
+                        // Once we find the first matching variant (like the "3" in 300_0_3|0),
+                        // we stick to it for the rest of the points.
+                        if (!detectedShapeId) detectedShapeId = shapeId;
+                        
+                        if (shapeId === detectedShapeId) {
                             coordsWithSequence.push({
                                 lat: parseFloat(row[0]),
                                 lng: parseFloat(row[1]),
@@ -181,21 +186,23 @@
                     }
                 }
 
+                // Sort by sequence to ensure the line is drawn in order
                 coordsWithSequence.sort((a, b) => a.seq - b.seq);
                 const finalCoords = coordsWithSequence.map(c => [c.lat, c.lng]);
 
                 if (finalCoords.length > 0) {
                     currentRouteLine = L.polyline(finalCoords, {
                         color: getBusColor(line),
-                        weight: 3,
-                        opacity: 1.0,
-                        dashArray: null,
-                        lineJoin: 'round',
-                        interactive: false
+                        weight: 4,
+                        opacity: 0.8,
+                        lineJoin: 'round'
                     }).addTo(map);
+                    
+                    // Optional: Zoom map to fit the new route
+                    map.fitBounds(currentRouteLine.getBounds(), {padding: [20, 20]});
                 }
             } catch (e) {
-                console.error("Erro no trajeto:", e);
+                console.error("Error drawing route:", e);
             }
         }
 
