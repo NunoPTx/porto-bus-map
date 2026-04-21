@@ -153,15 +153,23 @@
                 
                 const lines = cachedShapes.split('\n');
                 let coordsWithSequence = [];
-                const targetPrefix = `${line}_0_${directionId + 1}`;
+                
+                // MODIFIED LOGIC:
+                // Instead of a strict "LINE_0_1", we look for the line number 
+                // and the direction at the end, allowing any variant in the middle.
+                const lineStr = line.toString();
+                const targetDirection = (directionId + 1).toString();
+
                 let detectedVariant = null;
 
                 for (let i = 1; i < lines.length; i++) {
                     const row = lines[i].split(',');
                     if (row.length < 5) continue;
                     
-                    const shapeId = row[3];
-                    if (shapeId.startsWith(targetPrefix)) {
+                    const shapeId = row[3]; // e.g., "300_0_3|0"
+                    
+                    // This checks if it starts with "300_" AND ends with "3|0" (or "1|0")
+                    if (shapeId.startsWith(lineStr + "_") && shapeId.includes("_" + targetDirection + "|")) {
                         if (!detectedVariant) detectedVariant = shapeId;
                         if (shapeId === detectedVariant) {
                             coordsWithSequence.push({
@@ -180,7 +188,7 @@
                     currentRouteLine = L.polyline(finalCoords, {
                         color: getBusColor(line),
                         weight: 3,
-                        opacity: 1.0, // 100% Opaco
+                        opacity: 1.0,
                         dashArray: null,
                         lineJoin: 'round',
                         interactive: false
