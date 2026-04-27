@@ -1,38 +1,45 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Porto Bus Network Map</title>
+    <title>Porto Bus Network - Static Overlay</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { margin: 0; padding: 0; background: #050505; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; background: #050505; }
-        #status {
+        body { margin: 0; padding: 0; background: #111; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; background: #111; }
+        
+        /* Minimalist HUD for screenshot status */
+        #hud {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(0,0,0,0.8); color: #00f3ff; padding: 15px;
-            border-radius: 4px; font-family: 'Monaco', monospace; 
-            border: 1px solid #00f3ff; pointer-events: none;
-            text-transform: uppercase; letter-spacing: 1px;
+            background: rgba(0,0,0,0.8); color: white; padding: 12px 20px;
+            border-radius: 5px; font-family: 'Segoe UI', Tahoma, sans-serif;
+            border-left: 4px solid #00f3ff; pointer-events: none;
         }
+        .legend-item { font-size: 12px; margin-top: 5px; color: #ccc; }
     </style>
 </head>
 <body>
-    <div id="status">System: Initializing Network Render...</div>
+    <div id="hud">
+        <div id="status" style="font-weight: bold; letter-spacing: 1px;">INITIALIZING MAP...</div>
+        <div class="legend-item">● Direction 1: 80% Opacity</div>
+        <div class="legend-item">○ Direction 2: 15% Opacity</div>
+    </div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Setup map with Canvas renderer for performance
+        // Use Canvas for smooth rendering of thousands of coordinates
         const map = L.map('map', { 
             zoomControl: false, 
             preferCanvas: true 
         }).setView([41.1579, -8.6291], 13);
 
-        // Cleanest Dark Map tiles for network visibility
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap'
+        // Dark, clean tiles without heavy labeling
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+            attribution: 'STCP Network Overlay'
         }).addTo(map);
 
+        // Your original color logic preserved
         function getBusColor(line) {
             if (!line) return '#ffffff';
             const s = line.toString().toUpperCase().trim();
@@ -46,68 +53,68 @@
             return '#ffffff'; 
         }
 
-        async function renderNetwork() {
-            const statusEl = document.getElementById('status');
+        async function drawNetwork() {
+            const status = document.getElementById('status');
             try {
-                statusEl.innerText = "Status: Fetching Shapes...";
+                status.innerText = "LOADING SHAPES...";
                 const response = await fetch('shapes.txt');
                 const text = await response.text();
-                const lines = text.split('\n');
+                const rows = text.split('\n');
                 
                 const routeShapes = {};
 
-                statusEl.innerText = "Status: Processing Data...";
-                
-                // Parse CSV and group coordinates by shape_id
-                for (let i = 1; i < lines.length; i++) {
-                    const row = lines[i].split(',');
-                    if (row.length < 5) continue;
+                // Process CSV data
+                for (let i = 1; i < rows.length; i++) {
+                    const col = rows[i].split(',');
+                    if (col.length < 5) continue;
 
-                    const lat = parseFloat(row[0]);
-                    const lng = parseFloat(row[1]);
-                    const shapeId = row[3]; // format usually: LINE_0_DIRECTION
-                    const seq = parseInt(row[4]);
+                    const lat = parseFloat(col[0]);
+                    const lng = parseFloat(col[1]);
+                    const shapeId = col[3]; 
+                    const seq = parseInt(col[4]);
 
                     if (!routeShapes[shapeId]) {
                         const parts = shapeId.split('_');
+                        // Extracting Line and Direction from shape_id string
                         routeShapes[shapeId] = {
                             line: parts[0],
-                            direction: parts[parts.length - 1], // Last digit
+                            // Looking at the last part of the ID for direction (usually 1 or 2)
+                            direction: parts[parts.length - 1],
                             points: []
                         };
                     }
                     routeShapes[shapeId].points.push({ lat, lng, seq });
                 }
 
-                statusEl.innerText = "Status: Rendering Vectors...";
+                status.innerText = "RENDERING NETWORK...";
                 
                 Object.keys(routeShapes).forEach(id => {
                     const shape = routeShapes[id];
-                    // Ensure points are in order
                     shape.points.sort((a, b) => a.seq - b.seq);
-                    const path = shape.points.map(p => [p.lat, p.lng]);
+                    const latLngs = shape.points.map(p => [p.lat, p.lng]);
                     
-                    // Logic: Direction '1' is bright, Direction '2' (or others) is soft
-                    const isMainDirection = shape.direction === "1";
+                    // Logic: Direction 1 is the "Hero", others are "Background"
+                    const isMain = (shape.direction === "1");
                     
-                    L.polyline(path, {
+                    L.polyline(latLngs, {
                         color: getBusColor(shape.line),
-                        weight: isMainDirection ? 2.5 : 1.5,
-                        opacity: isMainDirection ? 0.7 : 0.15,
+                        weight: isMain ? 2.5 : 1.2,
+                        opacity: isMain ? 0.8 : 0.15, // Solid vs Softer
                         interactive: false
                     }).addTo(map);
                 });
 
-                statusEl.innerText = "Status: Complete";
-                setTimeout(() => { statusEl.style.opacity = '0.3'; }, 2000);
+                status.innerText = "SYSTEM READY";
+                status.style.color = "#00f3ff";
 
-            } catch (e) {
-                console.error(e);
-                statusEl.innerText = "Error: shapes.txt not found";
+            } catch (err) {
+                console.error(err);
+                status.innerText = "ERROR: SHAPES.TXT NOT FOUND";
+                status.style.color = "#ff4444";
             }
         }
 
-        renderNetwork();
+        drawNetwork();
     </script>
 </body>
 </html>
