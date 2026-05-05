@@ -252,7 +252,7 @@ const lineDestinations = {
         async function updateBuses() {
             if (isZooming) return;
             try {
-				const url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://stcp.live/api/vehicles?t=' + Date.now());
+				const url = 'https://corsproxy.io/?' + encodeURIComponent('https://stcp.live/api/vehicles?t=' + Date.now());
 				const response = await fetch(url);
 				const data = await response.json();
                 const activeIds = new Set();
