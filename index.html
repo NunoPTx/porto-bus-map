@@ -252,11 +252,21 @@ const lineDestinations = {
         async function updateBuses() {
             if (isZooming) return;
             try {
-				const url = 'https://corsproxy.io/?' + encodeURIComponent('https://stcp.live/api/vehicles');
-				const response = await fetch(url, { cache: 'no-store', headers: { 'x-requested-with': 'XMLHttpRequest' } });
-				const text = await response.text();
-				if (!text.trim().startsWith('[')) return;
-				const data = JSON.parse(text);
+				const t = Date.now();
+				const proxies = [
+				    'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://stcp.live/api/vehicles?t=' + t),
+				    'https://corsproxy.io/?' + encodeURIComponent('https://stcp.live/api/vehicles?t=' + t),
+				    'https://api.codetabs.com/v1/proxy?quest=https://stcp.live/api/vehicles?t=' + t
+				];
+				let data = null;
+				for (const url of proxies) {
+				    try {
+				        const r = await fetch(url);
+				        const text = await r.text();
+				        if (text.trim().startsWith('[')) { data = JSON.parse(text); break; }
+				    } catch(e) { continue; }
+				}
+				if (!data) return;
                 const activeIds = new Set();
                 data.forEach(bus => {
                     const id = bus.id; const lat = bus.lat; const lon = bus.lng; const line = bus.routeId;
