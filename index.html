@@ -252,9 +252,8 @@ const lineDestinations = {
         async function updateBuses() {
             if (isZooming) return;
             try {
-                const url = 'https://corsproxy.io/?' + encodeURIComponent('https://stcp.live/api/vehicles?t=' + Date.now());
-                const response = await fetch(url);
-                const data = await response.json();
+				const response = await fetch('https://stcp.live/api/vehicles?t=' + Date.now(), { headers: { 'Accept': 'application/json' } });
+				const data = await response.json();
                 const activeIds = new Set();
                 data.forEach(bus => {
                     const id = bus.id; const lat = bus.lat; const lon = bus.lng; const line = bus.routeId;
