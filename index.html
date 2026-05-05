@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Porto Bus Live Map</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
@@ -9,154 +10,112 @@
         #map { height: 100vh; width: 100vw; background: #111; }
         #dashboard {
             position: absolute; top: 10px; right: 10px; z-index: 1000;
-            background: rgba(0,0,0,0.85); color: white; padding: 10px;
-            border-radius: 8px; font-family: sans-serif; border: 1px solid #444;
+            background: rgba(0,0,0,0.9); color: white; padding: 12px;
+            border-radius: 8px; font-family: sans-serif; border: 1px solid #00f3ff;
             text-align: right; pointer-events: none;
         }
-
         .gps-button {
             position: absolute; bottom: 30px; right: 20px; z-index: 1000;
-            width: 45px; height: 45px; background: rgba(20,20,20,0.9);
-            border: 1.5px solid #00f3ff; border-radius: 10px; cursor: pointer;
+            width: 50px; height: 50px; background: #1a1a1a;
+            border: 2px solid #00f3ff; border-radius: 12px; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 15px rgba(0,243,255,0.2); pointer-events: auto;
         }
-
-        .user-location-marker { background: none !important; border: none !important; display: flex; align-items: center; justify-content: center; }
-        .neon-box {
-            width: 12px; height: 12px; border: 2px solid #00f3ff;
-            background: rgba(0, 243, 255, 0.4); box-shadow: 0 0 10px #00f3ff;
-            animation: pulse-neon 2s infinite; box-sizing: border-box;
-        }
-
-        @keyframes pulse-neon { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
-
         .bus-wrapper { position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
-        .bus-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.6); z-index: 2; }
-        .bus-direction { position: absolute; width: 100%; height: 100%; top: 0; left: 0; transition: transform 0.5s ease-in-out; z-index: 1; pointer-events: none; }
-        
-        .leaflet-marker-icon { transition: transform 0.3s linear, left 0.3s linear, top 0.3s linear !important; }
+        .bus-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; z-index: 2; }
+        .bus-direction { position: absolute; width: 100%; height: 100%; z-index: 1; transition: transform 0.5s ease; }
+        .leaflet-marker-icon { transition: all 0.5s linear !important; }
     </style>
 </head>
 <body>
+
     <div id="dashboard">
-        <div id="counter" style="font-weight:bold; font-size: 16px;">Connecting...</div>
-        <div id="timestamp" style="font-size:10px; color:#aaa; margin-top:2px;">Waiting for data...</div>
+        <div id="counter" style="font-weight:bold; font-size: 18px;">Iniciando...</div>
+        <div id="timestamp" style="font-size:11px; color:#00f3ff; margin-top:4px;">A carregar frota...</div>
     </div>
     
     <div id="map"></div>
-    
-    <div class="gps-button" onclick="centerMapOnUser()">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00f3ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
-        </svg>
-    </div>
+    <div class="gps-button" onclick="centerMap()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00f3ff" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        const lineDestinations = {
-            "200": ["Bolhão", "Castelo do Queijo"], "201": ["Aliados", "Viso"], "202": ["Aliados", "Passeio Alegre"],
-            "203": ["Estádio do Dragão", "Boavista"], "204": ["Hosp. S. João", "Foz"], "205": ["Campanhã", "Castelo do Queijo"],
-            "500": ["São Bento", "Matosinhos (Mercado)"], "502": ["Bolhão", "Matosinhos (Mercado)"], "704": ["Boavista", "Codiceira"],
-            "901": ["Trindade", "Valadares"], "906": ["Trindade", "Madalena"]
-            // Add more as needed
-        };
-
         const map = L.map('map', { zoomControl: false }).setView([41.1579, -8.6291], 14);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
         let busMarkers = {};
-        let userMarker = null;
         let userPos = null;
 
-        map.on('locationfound', (e) => {
-            userPos = e.latlng;
-            if (!userMarker) {
-                userMarker = L.marker(userPos, {
-                    icon: L.divIcon({ className: 'user-location-marker', html: '<div class="neon-box"></div>', iconSize: [12, 12] })
-                }).addTo(map);
-            } else { userMarker.setLatLng(userPos); }
-        });
-        map.locate({ watch: true, enableHighAccuracy: true });
+        map.on('locationfound', (e) => { userPos = e.latlng; });
+        map.locate({ watch: true });
+        function centerMap() { if (userPos) map.flyTo(userPos, 16); }
 
-        function centerMapOnUser() { if (userPos) map.flyTo(userPos, 16); }
-
-        function getBusColor(line) {
-            const s = line.toString().toUpperCase();
-            if (s.endsWith('M')) return '#000000';
+        function getStyle(line) {
+            const s = line.toString();
+            if (s.endsWith('M')) return '#000';
             if (s.startsWith('5')) return '#fcd116';
-            if (s.startsWith('6')) return '#00ac00';
             if (s.startsWith('7')) return '#ff0000';
-            if (s.startsWith('8')) return '#a347ff';
             if (s.startsWith('9')) return '#ff7900';
             return '#187ec2';
         }
 
         async function updateBuses() {
             try {
-                // We use a specific proxy URL format to discourage compression issues
+                // SWITCHED PROXY: allorigins is better at handling the STCP compression issue
                 const target = `https://stcp.live/api/vehicles?t=${Date.now()}`;
-                const url = `https://corsproxy.io/?${encodeURIComponent(target)}`;
+                const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`;
 
                 const response = await fetch(url);
-                if (!response.ok) throw new Error('Network response was not ok');
+                if (!response.ok) throw new Error("Proxy error");
                 
                 const data = await response.json();
-                const activeIds = new Set();
+                const currentIds = new Set();
 
                 data.forEach(bus => {
-                    // API uses: id, lat, lng, routeId, bearing, directionId
-                    const { id, lat, lng, routeId, bearing, directionId } = bus;
+                    const { id, lat, lng, routeId, bearing } = bus;
                     if (!lat || !lng) return;
-                    activeIds.add(id);
-
-                    const color = getBusColor(routeId);
-                    const dests = lineDestinations[routeId];
-                    const sentido = dests ? (directionId === 0 ? dests[1] : dests[0]) : `Sentido ${directionId}`;
+                    currentIds.add(id);
 
                     if (busMarkers[id]) {
                         busMarkers[id].setLatLng([lat, lng]);
-                        const el = busMarkers[id].getElement();
-                        if (el) {
-                            const svg = el.querySelector('.bus-direction');
+                        const icon = busMarkers[id].getElement();
+                        if (icon) {
+                            const svg = icon.querySelector('.bus-direction');
                             if (svg) svg.style.transform = `rotate(${bearing}deg)`;
                         }
                     } else {
-                        const iconHtml = `
+                        const color = getStyle(routeId);
+                        const html = `
                             <div class="bus-wrapper">
-                                <div class="bus-dot" style="background-color: ${color}"></div>
-                                <svg class="bus-direction" style="transform: rotate(${bearing}deg)" viewBox="0 0 40 40">
-                                    <path d="M20 4l5 8H15z" fill="white" />
+                                <div class="bus-dot" style="background:${color}"></div>
+                                <svg class="bus-direction" style="transform:rotate(${bearing}deg)" viewBox="0 0 40 40">
+                                    <path d="M20 4l6 10H14z" fill="white" />
                                 </svg>
                             </div>`;
 
                         busMarkers[id] = L.marker([lat, lng], {
-                            icon: L.divIcon({ className: '', html: iconHtml, iconSize: [40, 40], iconAnchor: [20, 20] })
-                        }).addTo(map).bindPopup(`<b>Linha ${routeId}</b><br>${sentido}<br><small>ID: ${id}</small>`);
+                            icon: L.divIcon({ className: '', html: html, iconSize: [40, 40], iconAnchor: [20, 20] })
+                        }).addTo(map).bindPopup(`<b>Linha ${routeId}</b><br>Viatura: ${id}`);
                     }
                 });
 
-                // Remove buses that are no longer active
+                // Clean up vanished buses
                 Object.keys(busMarkers).forEach(id => {
-                    if (!activeIds.has(id)) {
+                    if (!currentIds.has(id)) {
                         map.removeLayer(busMarkers[id]);
                         delete busMarkers[id];
                     }
                 });
 
                 document.getElementById('counter').innerText = `Autocarros: ${data.length}`;
-                document.getElementById('timestamp').innerText = `Atualizado: ${new Date().toLocaleTimeString('pt-PT')}`;
+                document.getElementById('timestamp').innerText = `Sync: ${new Date().toLocaleTimeString()}`;
 
             } catch (err) {
-                console.error("Fetch error:", err);
-                // If it fails, try a backup proxy in the console or just wait for next cycle
+                console.error("Critical Fetch Error:", err);
+                document.getElementById('timestamp').innerText = "Erro de Ligação...";
             }
         }
 
-        setInterval(updateBuses, 4000);
+        setInterval(updateBuses, 5000);
         updateBuses();
     </script>
 </body>
