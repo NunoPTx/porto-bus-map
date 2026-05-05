@@ -175,7 +175,7 @@ const lineDestinations = {
         map.on('zoomstart', () => { isZooming = true; });
         map.on('zoomend', () => { isZooming = false; });
 
-        // --- LÓGICA GPS CORRIGIDA ---
+        // --- LÓGICA GPS 
         map.on('locationfound', (e) => {
             userPos = e.latlng;
             if (!userMarker) {
