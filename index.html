@@ -252,21 +252,19 @@ const lineDestinations = {
         async function updateBuses() {
             if (isZooming) return;
             try {
-				const t = Date.now();
-				const proxies = [
-				    'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://stcp.live/api/vehicles?t=' + t),
-				    'https://corsproxy.io/?' + encodeURIComponent('https://stcp.live/api/vehicles?t=' + t),
-				    'https://api.codetabs.com/v1/proxy?quest=https://stcp.live/api/vehicles?t=' + t
+				const TARGET = 'https://stcp.live/api/vehicles?t=' + Date.now();
+				const PROXIES = [
+				    'https://corsproxy.io/?' + encodeURIComponent(TARGET),
+				    'https://api.allorigins.win/raw?url=' + encodeURIComponent(TARGET),
+				    'https://thingproxy.freeboard.io/fetch/' + TARGET,
 				];
-				let data = null;
-				for (const url of proxies) {
-				    try {
-				        const r = await fetch(url);
-				        const text = await r.text();
-				        if (text.trim().startsWith('[')) { data = JSON.parse(text); break; }
-				    } catch(e) { continue; }
-				}
-				if (!data) return;
+				const tryProxy = async (url) => {
+				    const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
+				    const text = await r.text();
+				    if (!text.trim().startsWith('[')) throw new Error('bad response');
+				    return JSON.parse(text);
+				};
+				const data = await Promise.any(PROXIES.map(tryProxy));
                 const activeIds = new Set();
                 data.forEach(bus => {
                     const id = bus.id; const lat = bus.lat; const lon = bus.lng; const line = bus.routeId;
@@ -301,7 +299,7 @@ const lineDestinations = {
         }
 
         updateBuses();
-        setInterval(updateBuses, 1000); 
+        setInterval(updateBuses, 1500); 
     </script>
 </body>
 </html>
