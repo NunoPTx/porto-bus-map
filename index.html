@@ -256,7 +256,7 @@ const lineDestinations = {
 				const PROXIES = [
 				    'https://corsproxy.io/?' + encodeURIComponent(TARGET),
 				    'https://api.allorigins.win/raw?url=' + encodeURIComponent(TARGET),
-				    'https://thingproxy.freeboard.io/fetch/' + TARGET,
+					'https://api.codetabs.com/v1/proxy?quest=https://stcp.live/api/vehicles?t=' +  encodeURIComponent(TARGET)
 				];
 				const tryProxy = async (url) => {
 				    const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
