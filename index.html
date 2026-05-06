@@ -252,19 +252,8 @@
         async function updateBuses() {
             if (isZooming) return;
             try {
-				const TARGET = 'https://stcp.live/api/vehicles?t=' + Date.now();
-				const PROXIES = [
-				    'https://corsproxy.io/?' + encodeURIComponent(TARGET),
-				    'https://api.allorigins.win/raw?url=' + encodeURIComponent(TARGET),
-					'https://api.codetabs.com/v1/proxy?quest=https://stcp.live/api/vehicles?t=' +  encodeURIComponent(TARGET)
-				];
-				const tryProxy = async (url) => {
-				    const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
-				    const text = await r.text();
-				    if (!text.trim().startsWith('[')) throw new Error('bad response');
-				    return JSON.parse(text);
-				};
-				const data = await Promise.any(PROXIES.map(tryProxy));
+				const r = await fetch('https://stcp-proxy.npeixoto2007.workers.dev', { signal: AbortSignal.timeout(5000) });
+				const data = await r.json();
                 const activeIds = new Set();
                 data.forEach(bus => {
                     const id = bus.id; const lat = bus.lat; const lon = bus.lng; const line = bus.routeId;
