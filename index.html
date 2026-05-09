@@ -13,8 +13,6 @@
             border-radius: 8px; font-family: sans-serif; border: 1px solid #444;
             text-align: right; pointer-events: none;
         }
-
-        /* Botão Localização */
         .gps-button {
             position: absolute; bottom: 30px; right: 20px; z-index: 1000;
             width: 45px; height: 45px; background: rgba(20,20,20,0.9);
@@ -25,8 +23,6 @@
         }
         .gps-button:active { transform: scale(0.9); background: #00f3ff; }
         .gps-button:active svg { stroke: #000; }
-
-        /* User Marker Neon Square - Centrado */
         .user-location-marker {
             background: none !important;
             border: none !important;
@@ -42,13 +38,11 @@
             animation: pulse-neon 2s infinite;
             box-sizing: border-box;
         }
-
         @keyframes pulse-neon {
             0% { transform: scale(1); opacity: 1; }
             50% { transform: scale(1.2); opacity: 0.7; }
             100% { transform: scale(1); opacity: 1; }
         }
-
         .bus-wrapper {
             position: relative; width: 40px; height: 40px;
             display: flex; align-items: center; justify-content: center;
@@ -161,21 +155,18 @@
 		const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([41.1579, -8.6291], 14);
 		L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
 		    attribution: '&copy; Esri, HERE, Garmin, FAO, NOAA, USGS, EPA',
-		    maxZoom: 16
+		    maxZoom: 24
 		}).addTo(map);
 
         let busMarkers = {};
         let isZooming = false;
         let currentRouteLine = null;
         let cachedShapes = null;
-        
         let userMarker = null;
         let userPos = null;
 
         map.on('zoomstart', () => { isZooming = true; });
         map.on('zoomend', () => { isZooming = false; });
-
-        // --- LÓGICA GPS CORRIGIDA ---
         map.on('locationfound', (e) => {
             userPos = e.latlng;
             if (!userMarker) {
@@ -185,7 +176,7 @@
                         className: 'user-location-marker',
                         html: '<div class="neon-box"></div>',
                         iconSize: [12, 12],
-                        iconAnchor: [6, 6] // Metade exacta do iconSize para centrar
+                        iconAnchor: [6, 6]
                     })
                 }).addTo(map);
             } else {
@@ -202,7 +193,6 @@
                 alert("A aguardar sinal GPS...");
             }
         }
-        // ---------------------------
 
         function getBusColor(line) {
             if (!line) return '#ffffff';
