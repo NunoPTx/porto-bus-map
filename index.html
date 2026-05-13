@@ -242,8 +242,31 @@
         async function updateBuses() {
             if (isZooming) return;
             try {
-				const r = await fetch('https://stcp-proxy.npeixoto2007.workers.dev', { signal: AbortSignal.timeout(5000) });
-				const data = await r.json();
+				let data;
+				let fiwareOk = false;
+				try {
+				    const r = await fetch('https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000', { signal: AbortSignal.timeout(8000) });
+				    const entities = await r.json();
+				    if (Array.isArray(entities) && entities.length > 0) {
+				        fiwareOk = true;
+				        console.log('FIWARE sample:', JSON.stringify(entities[0], null, 2));
+				        data = entities.map(e => ({
+				            id:          e.id,
+				            lat:         e.location?.value?.coordinates?.[1] ?? null,
+				            lng:         e.location?.value?.coordinates?.[0] ?? null,
+				            routeId:     e.serviceProvided?.value ?? e.lineName?.value ?? '',
+				            bearing:     e.heading?.value ?? 0,
+				            directionId: e.directionId?.value ?? 0,
+				        }));
+				    }
+				} catch (e) {
+				    console.warn('FIWARE failed:', e);
+				}
+				if (!fiwareOk) {
+				    console.warn('Falling back to worker proxy...');
+				    const r = await fetch('https://stcp-proxy.npeixoto2007.workers.dev', { signal: AbortSignal.timeout(5000) });
+				    data = await r.json();
+				}
                 const activeIds = new Set();
                 data.forEach(bus => {
                     const id = bus.id; const lat = bus.lat; const lon = bus.lng; const line = bus.routeId;
