@@ -251,12 +251,12 @@
 				        fiwareOk = true;
 				        console.log('FIWARE sample:', JSON.stringify(entities[0], null, 2));
 				        data = entities.map(e => ({
-				            id:          e.id,
+							id:          e.fleetVehicleId?.value ?? e.id,
 				            lat:         e.location?.value?.coordinates?.[1] ?? null,
 				            lng:         e.location?.value?.coordinates?.[0] ?? null,
 				            bearing:     e.heading?.value ?? 0,
-							routeId:     e.lineName?.value ?? (Array.isArray(e.serviceProvided?.value) ? e.serviceProvided.value[0] : e.serviceProvided?.value) ?? '',
-							directionId: e.directionId?.value ?? e.direction?.value ?? 0,
+							routeId:     (e.annotations?.value?.find(a => a.startsWith('stcp:route:'))?.split(':')[2]) ?? '',
+							directionId: parseInt(e.annotations?.value?.find(a => a.startsWith('stcp:sentido:'))?.split(':')[1]) || 0,
 				        }));
 				    }
 				} catch (e) {
