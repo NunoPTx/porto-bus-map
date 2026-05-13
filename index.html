@@ -255,19 +255,30 @@
 		            console.warn('Worker failed:', e);
 		        }
 		
-		        if (!workerOk) {
-		            console.warn('Worker empty or failed, falling back to FIWARE...');
-		            const r = await fetch('https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000', { signal: AbortSignal.timeout(8000) });
-		            const entities = await r.json();
-		            data = entities.map(e => ({
-		                id:          e.fleetVehicleId?.value ?? e.id,
-		                lat:         e.location?.value?.coordinates?.[1] ?? null,
-		                lng:         e.location?.value?.coordinates?.[0] ?? null,
-		                bearing:     e.heading?.value ?? 0,
-		                routeId:     (e.annotations?.value?.find(a => a.startsWith('stcp:route:'))?.split(':')[2]) ?? '',
-		                directionId: parseInt(e.annotations?.value?.find(a => a.startsWith('stcp:sentido:'))?.split(':')[1]) || 0,
-		            }));
-		        }
+				if (!workerOk) {
+				    console.warn('Worker empty or failed, falling back to FIWARE...');
+				    try {
+				        const r = await fetch('https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?q=vehicleType==bus&limit=1000', { signal: AbortSignal.timeout(8000) });
+				        const entities = await r.json();
+				        if (Array.isArray(entities) && entities.length > 0) {
+				            data = entities.map(e => ({
+				                id:          e.fleetVehicleId?.value ?? e.id,
+				                lat:         e.location?.value?.coordinates?.[1] ?? null,
+				                lng:         e.location?.value?.coordinates?.[0] ?? null,
+				                bearing:     e.heading?.value ?? 0,
+				                routeId:     (e.annotations?.value?.find(a => a.startsWith('stcp:route:'))?.split(':')[2]) ?? '',
+				                directionId: parseInt(e.annotations?.value?.find(a => a.startsWith('stcp:sentido:'))?.split(':')[1]) || 0,
+				            }));
+				        }
+				    } catch (e) {
+				        console.warn('FIWARE also failed:', e);
+				    }
+				}
+				
+				if (!data || data.length === 0) {
+				    document.getElementById('counter').innerText = 'No data';
+				    return;
+				}
                 const activeIds = new Set();
                 data.forEach(bus => {
                     const id = bus.id; const lat = bus.lat; const lon = bus.lng; const line = bus.routeId;
