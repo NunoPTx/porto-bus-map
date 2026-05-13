@@ -286,7 +286,7 @@
                     if (!lat || !lon) return; activeIds.add(id);
                     let sentidoText = directionId;
                     if (lineDestinations[line]) { sentidoText = (directionId === 0) ? lineDestinations[line][1] : lineDestinations[line][0]; }
-                    const popupContent = `<b>${line} | ${sentidoText} | ${id}</b>`;
+					const popupContent = `<b>${line} | ${sentidoText} | ${id}${!workerOk ? ' <span style="color:#00ff00">*</span>' : ''}</b>`;
                     if (busMarkers[id]) {
                         const marker = busMarkers[id];
                         marker.setLatLng([lat, lon]);
