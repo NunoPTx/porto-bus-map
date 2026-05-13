@@ -254,9 +254,9 @@
 				            id:          e.id,
 				            lat:         e.location?.value?.coordinates?.[1] ?? null,
 				            lng:         e.location?.value?.coordinates?.[0] ?? null,
-				            routeId:     e.serviceProvided?.value ?? e.lineName?.value ?? '',
 				            bearing:     e.heading?.value ?? 0,
-				            directionId: e.directionId?.value ?? 0,
+							routeId:     e.lineName?.value ?? (Array.isArray(e.serviceProvided?.value) ? e.serviceProvided.value[0] : e.serviceProvided?.value) ?? '',
+							directionId: e.directionId?.value ?? e.direction?.value ?? 0,
 				        }));
 				    }
 				} catch (e) {
